@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Сравнение: Было / Стало</title>
+    <!-- Google Fonts for luxurious typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Montserrat:wght@300;400;600&display=swap" rel="stylesheet">
+    
+    <!-- React and Babel CDNs -->
+    <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <style>
+        :root {
+            --slider-pos: 100%;
+            --accent-gold: #d4af37;
+            --accent-silver: #e0e0e0;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        body, html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            font-family: 'Montserrat', sans-serif;
+            background-color: #0d0d0c;
+            color: #ffffff;
+        }
+
+        #root {
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Fullscreen Container */
+        .comparison-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            cursor: ew-resize;
+        }
+
+        .comparison-container.dragging {
+            cursor: grabbing;
+        }
+
+        /* Image Wrappers */
+        .image-wrapper {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+        }
+
+        .image-wrapper img {
+            width: 100vw;
+            height: 100vh;
+            object-fit: cover;
+            object-position: center;
+            pointer-events: none;
+        }
+
+        /* The "Before" (Было) image is on top and clipped by the SVG mask */
+        .image-before {
+            z-index: 2;
+            width: 100%;
+            height: 100%;
+            /* Apply the feathered SVG mask */
+            mask: url(#lightning-mask);
+            -webkit-mask: url(#lightning-mask);
+        }
+
+        /* The "After" (Стало) image is in the background */
+        .image-after {
+            z-index: 1;
+        }
+
+        /* Top Header Overlay */
+        .header-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            padding: 40px 60px;
+            z-index: 10;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: linear-gradient(to bottom, rgba(0, 0, 0, 0.8) 0%, rgba(0,0,0,0) 100%);
+            pointer-events: none;
+        }
+
+        .label-title {
+            font-family: 'Cinzel', serif;
+            font-size: 3rem;
+            font-weight: 700;
+            letter-spacing: 0.3em;
+            text-transform: uppercase;
+            text-shadow: 0 4px 12px rgba(0, 0, 0, 0.8);
+            transition: opacity 0.3s ease, transform 0.3s ease;
+        }
+
+        /* Left label "БЫЛО" */
+        .label-before {
+            color: var(--accent-gold);
+            background: linear-gradient(45deg, #f3e5ab, #d4af37);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            opacity: calc(var(--slider-pos-ratio) * 1.5 - 0.2);
+            transform: translateX(calc((1 - var(--slider-pos-ratio)) * -30px));
+        }
+
+        /* Right label "СТАЛО" */
+        .label-after {
+            color: var(--accent-silver);
+            background: linear-gradient(45deg, #ffffff, #a6a6a6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            opacity: calc((1 - var(--slider-pos-ratio)) * 1.5 - 0.2);
+            transform: translateX(calc(var(--slider-pos-ratio) * 30px));
+        }
+
+        .glow-gold {
+            filter: drop-shadow(0 0 8px rgba(212, 175, 55, 0.3));
+        }
+
+        .glow-silver {
+            filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.3));
+        }
+
+        /* Fullscreen Canvas for Lightning Rendering */
+        .lightning-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 5;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+    <!-- Inline SVG definition for the feathered mask -->
+    <svg style="position: absolute; width: 0; height: 0; pointer-events: none;">
+        <defs>
+            <!-- Feather blur filter applied to the mask boundary -->
+            <filter id="feather-blur">
+                <feGaussianBlur stdDeviation="8" />
+            </filter>
+            <!-- The mask structure: everything black is hidden, everything white is shown -->
+            <mask id="lightning-mask" maskContentUnits="userSpaceOnUse">
+                <rect width="100%" height="100%" fill="black" />
+                <polygon id="mask-polygon" fill="white" filter="url(#feather-blur)" />
+            </mask>
+        </defs>
+    </svg>
+
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        function App() {
+            const [sliderPos, setSliderPos] = useState(100); // Percentage from 0 to 100
+            const [isDragging, setIsDragging] = useState(false);
+            const containerRef = useRef(null);
+            const canvasRef = useRef(null);
+            
+            // Mutable references for animation loop parameters
+            const timeRef = useRef(0);
+            const sliderPosRef = useRef(100);
+            const prevXRef = useRef(null);
+
+            // Keep reference updated to read the latest state inside animation frames
+            useEffect(() => {
+                sliderPosRef.current = sliderPos;
+            }, [sliderPos]);
+
+            // Handle resize for the canvas
+            useEffect(() => {
+                const handleResize = () => {
+                    const canvas = canvasRef.current;
+                    if (canvas) {
+                        canvas.width = window.innerWidth;
+                        canvas.height = window.innerHeight;
+                    }
+                };
+                window.addEventListener('resize', handleResize);
+                handleResize(); // Initial call
+                return () => window.removeEventListener('resize', handleResize);
+            }, []);
+
+            // Lightning Animation and Mask update Loop
+            useEffect(() => {
+                let animationFrameId;
+                
+                const renderLightning = () => {
+                    const canvas = canvasRef.current;
+                    if (!canvas) return;
+                    const ctx = canvas.getContext('2d');
+                    const width = canvas.width;
+                    const height = canvas.height;
+                    const maskPoly = document.getElementById('mask-polygon');
+                    
+                    // Clear canvas
+                    ctx.clearRect(0, 0, width, height);
+
+                    const currentSliderPercent = sliderPosRef.current;
+                    const targetX = (currentSliderPercent / 100) * width;
+
+                    // Initialize prevX if null
+                    if (prevXRef.current === null) {
+                        prevXRef.current = targetX;
+                    }
+
+                    // 1. Calculate physical movement speed (delta)
+                    const deltaX = targetX - prevXRef.current;
+                    prevXRef.current = targetX;
+
+                    // 2. Adjust time increment based on movement velocity
+                    // If moving, crawls at 0.015 (50% more intense).
+                    // If stationary, wiggles at a very slow breathing speed of 0.003
+                    const dt = Math.abs(deltaX) > 0.01 ? 0.015 : 0.003;
+                    timeRef.current += dt;
+                    const time = timeRef.current;
+
+                    // Boundary conditions for full screen reveals
+                    if (currentSliderPercent >= 99.8) {
+                        if (maskPoly) {
+                            // Mask fully white -> show the entire "before" image
+                            maskPoly.setAttribute('points', `0,0 ${width},0 ${width},${height} 0,${height}`);
+                        }
+                        animationFrameId = requestAnimationFrame(renderLightning);
+                        return;
+                    }
+                    if (currentSliderPercent <= 0.2) {
+                        if (maskPoly) {
+                            // Mask fully black -> show the entire "after" image
+                            maskPoly.setAttribute('points', `0,0 0,0 0,${height} 0,${height}`);
+                        }
+                        animationFrameId = requestAnimationFrame(renderLightning);
+                        return;
+                    }
+
+                    // 3. Generate coordinates for the lightning path
+                    const points = [];
+                    const stepY = 10;
+                    const steps = Math.ceil(height / stepY);
+                    const sliderFactor = currentSliderPercent * 0.03;
+
+                    for (let i = 0; i <= steps; i++) {
+                        const y = i * stepY;
+                        
+                        // Noise waves for generating organic lightning bends
+                        const noiseVal = 
+                            Math.sin(y * 0.015 + time * 1.5 + sliderFactor) * 0.5 +
+                            Math.sin(y * 0.04 - time * 2.2 + sliderFactor * 1.5) * 0.35 +
+                            Math.cos(y * 0.1 + time * 4.0) * 0.15;
+
+                        // Maximum wiggling displacement amplitude is 15 pixels
+                        const dx = noiseVal * 15;
+                        points.push({ x: targetX + dx, y: y });
+                    }
+
+                    // 4. Update the SVG mask polygon points (feathered edge matches the lightning!)
+                    if (maskPoly) {
+                        // Left side is white (visible), right side is black (hidden)
+                        const polyPoints = `0,0 ` + points.map(p => `${Math.round(p.x)},${Math.round(p.y)}`).join(' ') + ` 0,${height}`;
+                        maskPoly.setAttribute('points', polyPoints);
+                    }
+
+                    // 5. Draw the glowing lightning bolt
+                    const flicker = 0.85 + 0.15 * Math.sin(time * 3.5) * Math.cos(time * 1.2);
+
+                    // Outer glowing warm-orange path
+                    ctx.beginPath();
+                    ctx.moveTo(points[0].x, points[0].y);
+                    for (let i = 1; i < points.length; i++) {
+                        ctx.lineTo(points[i].x, points[i].y);
+                    }
+                    ctx.lineWidth = 35;
+                    ctx.strokeStyle = `rgba(255, 140, 0, ${0.08 * flicker})`;
+                    ctx.lineCap = 'round';
+                    ctx.lineJoin = 'round';
+                    ctx.stroke();
+
+                    // Medium golden glow with dynamically varying thickness along height
+                    ctx.shadowBlur = 12;
+                    ctx.shadowColor = 'rgba(212, 175, 55, 0.7)';
+                    for (let i = 0; i < points.length - 1; i++) {
+                        ctx.beginPath();
+                        ctx.moveTo(points[i].x, points[i].y);
+                        ctx.lineTo(points[i+1].x, points[i+1].y);
+                        
+                        const yMid = (points[i].y + points[i+1].y) / 2;
+                        const localIntensity = 0.75 + 0.25 * Math.sin(yMid * 0.02 + time * 1.5);
+                        
+                        ctx.lineWidth = 9 * localIntensity;
+                        ctx.strokeStyle = `rgba(212, 175, 55, ${0.4 * localIntensity * flicker})`;
+                        ctx.stroke();
+                    }
+                    ctx.shadowBlur = 0;
+
+                    // Inner bright core
+                    ctx.beginPath();
+                    ctx.moveTo(points[0].x, points[0].y);
+                    for (let i = 1; i < points.length; i++) {
+                        ctx.lineTo(points[i].x, points[i].y);
+                    }
+                    ctx.lineWidth = 2.0;
+                    ctx.strokeStyle = `rgba(255, 255, 255, ${0.95 * flicker})`;
+                    ctx.stroke();
+
+                    animationFrameId = requestAnimationFrame(renderLightning);
+                };
+
+                animationFrameId = requestAnimationFrame(renderLightning);
+                return () => cancelAnimationFrame(animationFrameId);
+            }, []);
+
+            // Handle slider position updates
+            const updatePosition = (clientX) => {
+                if (!containerRef.current) return;
+                const rect = containerRef.current.getBoundingClientRect();
+                const x = clientX - rect.left;
+                let percentage = (x / rect.width) * 100;
+                if (percentage < 0) percentage = 0;
+                if (percentage > 100) percentage = 100;
+                
+                setSliderPos(percentage);
+            };
+
+            // Mouse Event Handlers
+            const handleMouseDown = (e) => {
+                if (e.button !== 0) return; // Only allow left-click drag
+                setIsDragging(true);
+                updatePosition(e.clientX);
+            };
+
+            const handleMouseMove = (e) => {
+                if (!isDragging) return;
+                updatePosition(e.clientX);
+            };
+
+            const handleMouseUpOrLeave = () => {
+                setIsDragging(false);
+            };
+
+            // Touch Event Handlers for mobile support
+            const handleTouchStart = (e) => {
+                setIsDragging(true);
+                if (e.touches.length > 0) {
+                    updatePosition(e.touches[0].clientX);
+                }
+            };
+
+            const handleTouchMove = (e) => {
+                if (!isDragging) return;
+                if (e.touches.length > 0) {
+                    updatePosition(e.touches[0].clientX);
+                }
+            };
+
+            const handleTouchEnd = () => {
+                setIsDragging(false);
+            };
+
+            const posRatio = sliderPos / 100;
+
+            return (
+                <div 
+                    ref={containerRef}
+                    className={`comparison-container ${isDragging ? 'dragging' : ''}`}
+                    onMouseDown={handleMouseDown}
+                    onMouseMove={handleMouseMove}
+                    onMouseUp={handleMouseUpOrLeave}
+                    onMouseLeave={handleMouseUpOrLeave}
+                    onTouchStart={handleTouchStart}
+                    onTouchMove={handleTouchMove}
+                    onTouchEnd={handleTouchEnd}
+                    style={{
+                        '--slider-pos': `${sliderPos}%`,
+                        '--slider-pos-ratio': posRatio
+                    }}
+                >
+                    {/* Header with "БЫЛО" / "СТАЛО" */}
+                    <div className="header-overlay">
+                        <div className="label-title label-before glow-gold">БЫЛО</div>
+                        <div className="label-title label-after glow-silver">СТАЛО</div>
+                    </div>
+
+                    {/* Fullscreen Canvas for Rendering the Lightning Bolt */}
+                    <canvas ref={canvasRef} className="lightning-canvas" />
+
+                    {/* Before Image (Top Layer, Clipped by the wiggling feathered mask) */}
+                    <div className="image-wrapper image-before">
+                        <img 
+                            src="Gemini_Generated_Image_no_logo.png" 
+                            alt="Было (Без логотипа)" 
+                        />
+                    </div>
+
+                    {/* After Image (Base Layer) */}
+                    <div className="image-wrapper image-after">
+                        <img 
+                            src="2new.png" 
+                            alt="Стало" 
+                        />
+                    </div>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>

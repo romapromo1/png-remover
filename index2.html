@@ -1,0 +1,826 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Сравнение локаций: Было / Стало</title>
+    <!-- Google Fonts for luxurious typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Montserrat:wght@300;400;600&display=swap" rel="stylesheet">
+    
+    <!-- React and Babel CDNs -->
+    <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script>
+        Babel.registerPreset('react-classic', {
+            presets: [
+                [Babel.availablePresets['react'], { runtime: 'classic' }]
+            ]
+        });
+    </script>
+
+    <style>
+        :root {
+            --slider-pos: 50%;
+            --slider-pos-ratio: 0.5;
+            --accent-gold: #d4af37;
+            --accent-silver: #e0e0e0;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        body, html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            font-family: 'Montserrat', sans-serif;
+            background-color: #0c0c0b;
+            color: #ffffff;
+        }
+
+        #root {
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Fullscreen Container */
+        .comparison-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            cursor: ew-resize;
+            background-color: #0c0c0b;
+        }
+
+        .comparison-container.dragging {
+            cursor: grabbing;
+        }
+
+        /* Image Wrappers */
+        .image-wrapper {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+        }
+
+        .image-wrapper img {
+            width: 100vw;
+            height: 100vh;
+            object-fit: cover;
+            object-position: center;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.4s ease;
+        }
+
+        .image-wrapper img.loaded {
+            opacity: 1;
+        }
+
+        /* The "Before" (Было) image is on top and clipped diagonally or masked by SVG */
+        .image-before {
+            z-index: 2;
+            will-change: clip-path, mask, -webkit-mask;
+        }
+
+        .image-before.mode-curl {
+            mask: none;
+            -webkit-mask: none;
+        }
+
+        .image-before.mode-lightning {
+            clip-path: none;
+            -webkit-clip-path: none;
+            mask: url(#lightning-mask);
+            -webkit-mask: url(#lightning-mask);
+        }
+
+        /* The "After" (Стало) image is in the background */
+        .image-after {
+            z-index: 1;
+        }
+
+        /* Top Header Overlay */
+        .header-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            padding: 40px 60px;
+            z-index: 10;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: linear-gradient(to bottom, rgba(0, 0, 0, 0.8) 0%, rgba(0,0,0,0) 100%);
+            pointer-events: none;
+        }
+
+        .label-title {
+            font-family: 'Cinzel', serif;
+            font-size: 3rem;
+            font-weight: 700;
+            letter-spacing: 0.3em;
+            text-transform: uppercase;
+            text-shadow: 0 4px 12px rgba(0, 0, 0, 0.8);
+            transition: opacity 0.3s ease, transform 0.3s ease;
+        }
+
+        /* Left label "БЫЛО" */
+        .label-before {
+            color: var(--accent-gold);
+            background: linear-gradient(45deg, #f3e5ab, #d4af37);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            opacity: calc(var(--slider-pos-ratio) * 1.5 - 0.2);
+            transform: translateX(calc((1 - var(--slider-pos-ratio)) * -30px));
+        }
+
+        /* Right label "СТАЛО" */
+        .label-after {
+            color: var(--accent-silver);
+            background: linear-gradient(45deg, #ffffff, #a6a6a6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            opacity: calc((1 - var(--slider-pos-ratio)) * 1.5 - 0.2);
+            transform: translateX(calc(var(--slider-pos-ratio) * 30px));
+        }
+
+        .glow-gold {
+            filter: drop-shadow(0 0 8px rgba(212, 175, 55, 0.3));
+        }
+
+        .glow-silver {
+            filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.3));
+        }
+
+        /* 3D Page Curl Crease Overlay */
+        .page-fold {
+            position: absolute;
+            top: 50%;
+            height: 200vh;
+            width: 140px;
+            z-index: 5;
+            pointer-events: none;
+            transform-origin: center;
+            will-change: left, transform;
+            background: linear-gradient(to right, 
+                rgba(0, 0, 0, 0) 0%, 
+                rgba(0, 0, 0, 0.15) 20%, 
+                rgba(0, 0, 0, 0.45) 42%, 
+                rgba(255, 255, 255, 0.6) 47%, 
+                rgba(245, 245, 240, 0.95) 49%, 
+                rgba(0, 0, 0, 0.7) 51%, 
+                rgba(0, 0, 0, 0.4) 57%, 
+                rgba(0, 0, 0, 0.15) 75%, 
+                rgba(0, 0, 0, 0) 100%
+            );
+            filter: drop-shadow(5px 0 15px rgba(0, 0, 0, 0.5));
+        }
+
+        /* Fullscreen Canvas for Lightning Rendering */
+        .lightning-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 5;
+            pointer-events: none;
+        }
+
+        /* Sidebar Container */
+        .sidebar {
+            position: absolute;
+            top: 130px;
+            bottom: 40px;
+            left: 40px;
+            width: 320px;
+            background: rgba(18, 18, 16, 0.75);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 20px;
+            padding: 24px;
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 30px 60px rgba(0, 0, 0, 0.6);
+            transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .sidebar-header {
+            font-family: 'Cinzel', serif;
+            font-size: 1.3rem;
+            font-weight: 700;
+            letter-spacing: 0.15em;
+            color: var(--accent-gold);
+            text-shadow: 0 0 10px rgba(212, 175, 55, 0.3);
+            margin-bottom: 20px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            text-align: center;
+        }
+
+        .sidebar-list {
+            flex: 1;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            padding-right: 4px;
+        }
+
+        /* Custom scrollbar for sidebar */
+        .sidebar-list::-webkit-scrollbar {
+            width: 6px;
+        }
+        .sidebar-list::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.02);
+            border-radius: 10px;
+        }
+        .sidebar-list::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 10px;
+        }
+        .sidebar-list::-webkit-scrollbar-thumb:hover {
+            background: var(--accent-gold);
+        }
+
+        /* Sidebar item styling */
+        .sidebar-item {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+        }
+
+        .sidebar-item:hover {
+            background: rgba(212, 175, 55, 0.08);
+            border-color: rgba(212, 175, 55, 0.25);
+            transform: translateX(6px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .sidebar-item.active {
+            background: rgba(212, 175, 55, 0.15);
+            border-color: var(--accent-gold);
+            box-shadow: 0 0 15px rgba(212, 175, 55, 0.25);
+            transform: translateX(8px);
+        }
+
+        .sidebar-item-thumb {
+            width: 70px;
+            height: 50px;
+            border-radius: 8px;
+            object-fit: cover;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            transition: border-color 0.3s ease;
+        }
+
+        .sidebar-item.active .sidebar-item-thumb {
+            border-color: var(--accent-gold);
+        }
+
+        .sidebar-item-name {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: #e0e0e0;
+            letter-spacing: 0.05em;
+            transition: color 0.3s ease;
+            text-align: left;
+            line-height: 1.3;
+        }
+
+        .sidebar-item.active .sidebar-item-name {
+            color: #ffffff;
+            text-shadow: 0 0 5px rgba(255, 255, 255, 0.2);
+        }
+
+        /* Mode Toggle */
+        .mode-toggle {
+            position: absolute;
+            top: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            background: rgba(18, 18, 16, 0.8);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 30px;
+            padding: 4px;
+            z-index: 100;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+        }
+
+        .mode-btn {
+            font-family: 'Montserrat', sans-serif;
+            font-size: 0.75rem;
+            font-weight: 600;
+            letter-spacing: 0.08em;
+            color: #a0a0a0;
+            background: transparent;
+            border: none;
+            padding: 10px 22px;
+            border-radius: 25px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+        }
+
+        .mode-btn:hover {
+            color: #ffffff;
+        }
+
+        .mode-btn.active {
+            color: #000000;
+            background: linear-gradient(45deg, #f3e5ab, #d4af37);
+            box-shadow: 0 4px 15px rgba(212, 175, 55, 0.4);
+            font-weight: 700;
+        }
+
+        /* Spinner Overlay */
+        .spinner-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(12, 12, 11, 0.75);
+            z-index: 90;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .spinner-overlay.show {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .spinner {
+            width: 60px;
+            height: 60px;
+            border: 3px solid rgba(212, 175, 55, 0.1);
+            border-radius: 50%;
+            border-top-color: var(--accent-gold);
+            animation: spin 1s cubic-bezier(0.55, 0.15, 0.45, 0.85) infinite;
+            filter: drop-shadow(0 0 10px rgba(212, 175, 55, 0.4));
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <!-- Inline SVG definition for the feathered mask -->
+    <svg style="position: absolute; width: 0; height: 0; pointer-events: none;">
+        <defs>
+            <!-- Feather blur filter applied to the mask boundary -->
+            <filter id="feather-blur">
+                <feGaussianBlur stdDeviation="8" />
+            </filter>
+            <!-- The mask structure: everything black is hidden, everything white is shown -->
+            <mask id="lightning-mask" maskContentUnits="userSpaceOnUse">
+                <rect width="100%" height="100%" fill="black" />
+                <polygon id="mask-polygon" fill="white" filter="url(#feather-blur)" />
+            </mask>
+        </defs>
+    </svg>
+
+    <div id="root"></div>
+
+    <script type="text/babel" data-presets="react-classic">
+        const { useState, useEffect, useRef } = React;
+
+        const locations = [
+            {
+                id: "lobby_1",
+                name: "Вестибюль 1",
+                before: "pic/Вестибюль_1_ДО.jpg",
+                after: "pic/Вестибюль_1.jpg"
+            },
+            {
+                id: "lobby_3",
+                name: "Вестибюль 3",
+                before: "pic/Вестибюль_3_ДО.jpg",
+                after: "pic/Вестибюль_3.jpg"
+            },
+            {
+                id: "concert_1",
+                name: "Концертный зал 1",
+                before: "pic/Концертный_зал_1_ДО.jpg",
+                after: "pic/Концертный_зал_1.jpg"
+            },
+            {
+                id: "concert_2",
+                name: "Концертный зал 2",
+                before: "pic/Концертный_зал_2_до.jpg",
+                after: "pic/Концертный_зал_2.jpg"
+            },
+            {
+                id: "concert_3",
+                name: "Концертный зал 3",
+                before: "pic/Концертный_зал_3_ДО.jpg",
+                after: "pic/Концертный_зал_3.jpg"
+            },
+            {
+                id: "lounge_2",
+                name: "Лаундж 2",
+                before: "pic/Лаундж_2_ДО.jpg",
+                after: "pic/Лаундж_2.jpg"
+            },
+            {
+                id: "lounge_3",
+                name: "Лаундж 3",
+                before: "pic/Лаундж_3 ДО.jpg",
+                after: "pic/Лаундж_3.jpg"
+            },
+            {
+                id: "private_2",
+                name: "Приватные комнаты 2",
+                before: "pic/Приватные_команты_2_до.jpg",
+                after: "pic/Приватные_команты_2.jpg"
+            }
+        ];
+
+        function App() {
+            const [activeLoc, setActiveLoc] = useState(locations[0]);
+            const [sliderPos, setSliderPos] = useState(50); // Set default to 50% split
+            const [isDragging, setIsDragging] = useState(false);
+            const [transitionType, setTransitionType] = useState('curl'); // 'curl' or 'lightning'
+            
+            const [beforeLoaded, setBeforeLoaded] = useState(false);
+            const [afterLoaded, setAfterLoaded] = useState(false);
+
+            const containerRef = useRef(null);
+            const canvasRef = useRef(null);
+            
+            // Mutable references for animation loop parameters
+            const timeRef = useRef(0);
+            const sliderPosRef = useRef(50);
+            const prevXRef = useRef(null);
+            const [winSize, setWinSize] = useState({ w: window.innerWidth, h: window.innerHeight });
+
+            // Keep reference updated to read the latest state inside animation frames
+            useEffect(() => {
+                sliderPosRef.current = sliderPos;
+            }, [sliderPos]);
+
+            // Handle resize
+            useEffect(() => {
+                const handleResize = () => {
+                    setWinSize({ w: window.innerWidth, h: window.innerHeight });
+                    const canvas = canvasRef.current;
+                    if (canvas && transitionType === 'lightning') {
+                        canvas.width = window.innerWidth;
+                        canvas.height = window.innerHeight;
+                    }
+                };
+                window.addEventListener('resize', handleResize);
+                handleResize(); // Initial call
+                return () => window.removeEventListener('resize', handleResize);
+            }, [transitionType]);
+
+            // Lightning Animation and Mask update Loop
+            useEffect(() => {
+                if (transitionType !== 'lightning') return;
+                
+                let animationFrameId;
+                
+                const renderLightning = () => {
+                    const canvas = canvasRef.current;
+                    if (!canvas) return;
+                    const ctx = canvas.getContext('2d');
+                    const width = canvas.width;
+                    const height = canvas.height;
+                    const maskPoly = document.getElementById('mask-polygon');
+                    
+                    // Clear canvas
+                    ctx.clearRect(0, 0, width, height);
+
+                    const currentSliderPercent = sliderPosRef.current;
+                    const targetX = (currentSliderPercent / 100) * width;
+
+                    // Initialize prevX if null
+                    if (prevXRef.current === null) {
+                        prevXRef.current = targetX;
+                    }
+
+                    // Calculate physical movement speed (delta)
+                    const deltaX = targetX - prevXRef.current;
+                    prevXRef.current = targetX;
+
+                    // Adjust time increment based on movement velocity
+                    const dt = Math.abs(deltaX) > 0.01 ? 0.015 : 0.003;
+                    timeRef.current += dt;
+                    const time = timeRef.current;
+
+                    // Boundary conditions for full screen reveals
+                    if (currentSliderPercent >= 99.8) {
+                        if (maskPoly) {
+                            maskPoly.setAttribute('points', `0,0 ${width},0 ${width},${height} 0,${height}`);
+                        }
+                        animationFrameId = requestAnimationFrame(renderLightning);
+                        return;
+                    }
+                    if (currentSliderPercent <= 0.2) {
+                        if (maskPoly) {
+                            maskPoly.setAttribute('points', `0,0 0,0 0,${height} 0,${height}`);
+                        }
+                        animationFrameId = requestAnimationFrame(renderLightning);
+                        return;
+                    }
+
+                    // Generate coordinates for the lightning path
+                    const points = [];
+                    const stepY = 10;
+                    const steps = Math.ceil(height / stepY);
+                    const sliderFactor = currentSliderPercent * 0.03;
+
+                    for (let i = 0; i <= steps; i++) {
+                        const y = i * stepY;
+                        
+                        // Noise waves for generating organic lightning bends
+                        const noiseVal = 
+                            Math.sin(y * 0.015 + time * 1.5 + sliderFactor) * 0.5 +
+                            Math.sin(y * 0.04 - time * 2.2 + sliderFactor * 1.5) * 0.35 +
+                            Math.cos(y * 0.1 + time * 4.0) * 0.15;
+
+                        // Maximum wiggling displacement amplitude is 15 pixels
+                        const dx = noiseVal * 15;
+                        points.push({ x: targetX + dx, y: y });
+                    }
+
+                    // Update the SVG mask polygon points (feathered edge matches the lightning)
+                    if (maskPoly) {
+                        const polyPoints = `0,0 ` + points.map(p => `${Math.round(p.x)},${Math.round(p.y)}`).join(' ') + ` 0,${height}`;
+                        maskPoly.setAttribute('points', polyPoints);
+                    }
+
+                    // Draw the glowing lightning bolt
+                    const flicker = 0.85 + 0.15 * Math.sin(time * 3.5) * Math.cos(time * 1.2);
+
+                    // Outer glowing warm-orange path
+                    ctx.beginPath();
+                    ctx.moveTo(points[0].x, points[0].y);
+                    for (let i = 1; i < points.length; i++) {
+                        ctx.lineTo(points[i].x, points[i].y);
+                    }
+                    ctx.lineWidth = 35;
+                    ctx.strokeStyle = `rgba(255, 140, 0, ${0.08 * flicker})`;
+                    ctx.lineCap = 'round';
+                    ctx.lineJoin = 'round';
+                    ctx.stroke();
+
+                    // Medium golden glow with dynamically varying thickness along height
+                    ctx.shadowBlur = 12;
+                    ctx.shadowColor = 'rgba(212, 175, 55, 0.7)';
+                    for (let i = 0; i < points.length - 1; i++) {
+                        ctx.beginPath();
+                        ctx.moveTo(points[i].x, points[i].y);
+                        ctx.lineTo(points[i+1].x, points[i+1].y);
+                        
+                        const yMid = (points[i].y + points[i+1].y) / 2;
+                        const localIntensity = 0.75 + 0.25 * Math.sin(yMid * 0.02 + time * 1.5);
+                        
+                        ctx.lineWidth = 9 * localIntensity;
+                        ctx.strokeStyle = `rgba(212, 175, 55, ${0.4 * localIntensity * flicker})`;
+                        ctx.stroke();
+                    }
+                    ctx.shadowBlur = 0;
+
+                    // Inner bright core
+                    ctx.beginPath();
+                    ctx.moveTo(points[0].x, points[0].y);
+                    for (let i = 1; i < points.length; i++) {
+                        ctx.lineTo(points[i].x, points[i].y);
+                    }
+                    ctx.lineWidth = 2.0;
+                    ctx.strokeStyle = `rgba(255, 255, 255, ${0.95 * flicker})`;
+                    ctx.stroke();
+
+                    animationFrameId = requestAnimationFrame(renderLightning);
+                };
+
+                animationFrameId = requestAnimationFrame(renderLightning);
+                return () => cancelAnimationFrame(animationFrameId);
+            }, [transitionType]);
+
+            // Handle slider position updates
+            const updatePosition = (clientX) => {
+                if (!containerRef.current) return;
+                const rect = containerRef.current.getBoundingClientRect();
+                const x = clientX - rect.left;
+                let percentage = (x / rect.width) * 100;
+                if (percentage < 0) percentage = 0;
+                if (percentage > 100) percentage = 100;
+                
+                setSliderPos(percentage);
+            };
+
+            // Mouse Event Handlers
+            const handleMouseDown = (e) => {
+                if (e.button !== 0) return; // Only allow left-click drag
+                setIsDragging(true);
+                updatePosition(e.clientX);
+            };
+
+            const handleMouseMove = (e) => {
+                if (!isDragging) return;
+                updatePosition(e.clientX);
+            };
+
+            const handleMouseUpOrLeave = () => {
+                setIsDragging(false);
+            };
+
+            // Touch Event Handlers for mobile support
+            const handleTouchStart = (e) => {
+                setIsDragging(true);
+                if (e.touches.length > 0) {
+                    updatePosition(e.touches[0].clientX);
+                }
+            };
+
+            const handleTouchMove = (e) => {
+                if (!isDragging) return;
+                if (e.touches.length > 0) {
+                    updatePosition(e.touches[0].clientX);
+                }
+            };
+
+            const handleTouchEnd = () => {
+                setIsDragging(false);
+            };
+
+            const handleLocationSelect = (loc) => {
+                setBeforeLoaded(false);
+                setAfterLoaded(false);
+                setActiveLoc(loc);
+            };
+
+            // Calculate diagonal crease coordinates
+            const targetX = (sliderPos / 100) * winSize.w;
+            const tiltX = 110; 
+            const xTop = targetX + tiltX;
+            const xBottom = targetX - tiltX;
+
+            const angleRad = Math.atan2(tiltX * 2, winSize.h);
+            const angleDeg = angleRad * (180 / Math.PI);
+
+            // Generate CSS clip-path polygon points for curl
+            const clipPathString = transitionType === 'curl' 
+                ? `polygon(0% 0%, ${xTop}px 0%, ${xBottom}px 100%, 0% 100%)`
+                : 'none';
+
+            const posRatio = sliderPos / 100;
+            const showFold = transitionType === 'curl' && sliderPos > 0.5 && sliderPos < 99.5;
+
+            const imageStyle = transitionType === 'curl' 
+                ? { clipPath: clipPathString, WebkitClipPath: clipPathString }
+                : {};
+
+            const isPageLoading = !beforeLoaded || !afterLoaded;
+
+            return (
+                <div 
+                    ref={containerRef}
+                    className={`comparison-container ${isDragging ? 'dragging' : ''}`}
+                    onMouseDown={handleMouseDown}
+                    onMouseMove={handleMouseMove}
+                    onMouseUp={handleMouseUpOrLeave}
+                    onMouseLeave={handleMouseUpOrLeave}
+                    onTouchStart={handleTouchStart}
+                    onTouchMove={handleTouchMove}
+                    onTouchEnd={handleTouchEnd}
+                    style={{
+                        '--slider-pos': `${sliderPos}%`,
+                        '--slider-pos-ratio': posRatio
+                    }}
+                >
+                    {/* Glassmorphic Location Sidebar */}
+                    <div 
+                        className="sidebar"
+                        onMouseDown={(e) => e.stopPropagation()}
+                        onTouchStart={(e) => e.stopPropagation()}
+                    >
+                        <div className="sidebar-header">ЛОКАЦИИ</div>
+                        <div className="sidebar-list">
+                            {locations.map((loc) => (
+                                <div 
+                                    key={loc.id} 
+                                    className={`sidebar-item ${activeLoc.id === loc.id ? 'active' : ''}`}
+                                    onClick={() => handleLocationSelect(loc)}
+                                >
+                                    <img 
+                                        src={loc.after} 
+                                        alt={loc.name} 
+                                        className="sidebar-item-thumb" 
+                                    />
+                                    <div className="sidebar-item-name">{loc.name}</div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Transition Mode Toggle */}
+                    <div 
+                        className="mode-toggle"
+                        onMouseDown={(e) => e.stopPropagation()}
+                        onTouchStart={(e) => e.stopPropagation()}
+                    >
+                        <button 
+                            className={`mode-btn ${transitionType === 'curl' ? 'active' : ''}`}
+                            onClick={() => setTransitionType('curl')}
+                        >
+                            Листание
+                        </button>
+                        <button 
+                            className={`mode-btn ${transitionType === 'lightning' ? 'active' : ''}`}
+                            onClick={() => setTransitionType('lightning')}
+                        >
+                            Молния
+                        </button>
+                    </div>
+
+                    {/* Loader Spinner Overlay */}
+                    <div className={`spinner-overlay ${isPageLoading ? 'show' : ''}`}>
+                        <div className="spinner"></div>
+                    </div>
+
+                    {/* Header with "БЫЛО" / "СТАЛО" */}
+                    <div className="header-overlay">
+                        <div className="label-title label-before glow-gold">БЫЛО</div>
+                        <div className="label-title label-after glow-silver">СТАЛО</div>
+                    </div>
+
+                    {/* 3D Page Fold crease line and shadow (only for curl mode) */}
+                    {showFold && (
+                        <div 
+                            className="page-fold"
+                            style={{
+                                left: `${targetX}px`,
+                                transform: `translate(-50%, -50%) rotate(${angleDeg}deg)`
+                            }}
+                        />
+                    )}
+
+                    {/* Fullscreen Canvas for Rendering the Lightning Bolt (only active in lightning mode) */}
+                    {transitionType === 'lightning' && (
+                        <canvas ref={canvasRef} className="lightning-canvas" />
+                    )}
+
+                    {/* Before Image (Top Layer) */}
+                    <div 
+                        className={`image-wrapper image-before ${transitionType === 'curl' ? 'mode-curl' : 'mode-lightning'}`}
+                        style={imageStyle}
+                    >
+                        <img 
+                            src={activeLoc.before} 
+                            alt={`${activeLoc.name} (До)`}
+                            className={beforeLoaded ? 'loaded' : ''}
+                            onLoad={() => setBeforeLoaded(true)}
+                        />
+                    </div>
+
+                    {/* After Image (Base Layer) */}
+                    <div className="image-wrapper image-after">
+                        <img 
+                            src={activeLoc.after} 
+                            alt={`${activeLoc.name} (После)`}
+                            className={afterLoaded ? 'loaded' : ''}
+                            onLoad={() => setAfterLoaded(true)}
+                        />
+                    </div>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
+
