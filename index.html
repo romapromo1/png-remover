@@ -668,6 +668,10 @@
                             if (Math.abs(deltaX) > Math.abs(deltaY)) {
                                 touchDirectionRef.current = 'horizontal';
                                 setIsDragging(true);
+                                setIsCollapsed(true);
+                                if (timerRef.current) {
+                                    clearTimeout(timerRef.current);
+                                }
                                 updatePosition(touch.clientX);
                             } else {
                                 touchDirectionRef.current = 'vertical';
