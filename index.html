@@ -557,15 +557,17 @@
                 return () => window.removeEventListener('resize', handleResize);
             }, []);
 
+            const lastTickedIndexRef = useRef(0);
+
             // Helper to update both state and ref for scroll offset
             const updateScrollOffset = (val) => {
                 const len = locations.length;
                 const normalized = (val % len + len) % len;
                 
-                const prevRound = Math.round(scrollOffsetRef.current);
-                const nextRound = Math.round(normalized);
-                if (prevRound !== nextRound) {
+                const diff = getCircularOffset(normalized, lastTickedIndexRef.current, len);
+                if (Math.abs(diff) >= 0.65) {
                     playClickSound();
+                    lastTickedIndexRef.current = (Math.round(normalized) % len + len) % len;
                 }
                 
                 scrollOffsetRef.current = normalized;
