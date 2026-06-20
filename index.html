@@ -451,8 +451,12 @@
             // Web Audio API refs for zero-latency UI sound effects
             const audioContextRef = useRef(null);
             const audioBufferRef = useRef(null);
+            const slideBufferRef = useRef(null);
+            const slideSourceRef = useRef(null);
+            const slideGainNodeRef = useRef(null);
+            const isDraggingRef = useRef(false);
 
-            // Preload click sound via Web Audio API and decode it in memory
+            // Preload click and slide sounds via Web Audio API and decode them in memory
             useEffect(() => {
                 const initAudio = () => {
                     if (audioContextRef.current) return;
@@ -460,6 +464,7 @@
                     if (!AudioContextClass) return;
                     audioContextRef.current = new AudioContextClass();
                     
+                    // Load transition/click sound
                     fetch('./click.mp3')
                         .then(response => response.arrayBuffer())
                         .then(arrayBuffer => {
@@ -472,7 +477,22 @@
                                 audioBufferRef.current = audioBuffer;
                             }
                         })
-                        .catch(err => console.log("Web Audio preloading failed:", err));
+                        .catch(err => console.log("Web Audio preloading click failed:", err));
+
+                    // Load slide sound
+                    fetch('./slide.mp3')
+                        .then(response => response.arrayBuffer())
+                        .then(arrayBuffer => {
+                            if (audioContextRef.current) {
+                                return audioContextRef.current.decodeAudioData(arrayBuffer);
+                            }
+                        })
+                        .then(audioBuffer => {
+                            if (audioBuffer) {
+                                slideBufferRef.current = audioBuffer;
+                            }
+                        })
+                        .catch(err => console.log("Web Audio preloading slide failed:", err));
                 };
 
                 const unlock = () => {
@@ -517,6 +537,73 @@
                     source.start(0);
                 }
             };
+
+            const startSlideSound = () => {
+                const ctx = audioContextRef.current;
+                const buffer = slideBufferRef.current;
+                if (!ctx || !buffer) return;
+                
+                if (ctx.state === 'suspended') {
+                    ctx.resume();
+                }
+                
+                if (slideSourceRef.current) return; // already active
+                
+                try {
+                    const source = ctx.createBufferSource();
+                    source.buffer = buffer;
+                    source.loop = true;
+                    
+                    const gainNode = ctx.createGain();
+                    gainNode.gain.setValueAtTime(0, ctx.currentTime);
+                    
+                    source.connect(gainNode);
+                    gainNode.connect(ctx.destination);
+                    
+                    source.start(0);
+                    
+                    slideSourceRef.current = source;
+                    slideGainNodeRef.current = gainNode;
+                } catch (e) {
+                    console.log("Error starting slide sound:", e);
+                }
+            };
+
+            const stopSlideSound = () => {
+                const ctx = audioContextRef.current;
+                const source = slideSourceRef.current;
+                const gainNode = slideGainNodeRef.current;
+                
+                if (!ctx || !source || !gainNode) return;
+                
+                slideSourceRef.current = null;
+                slideGainNodeRef.current = null;
+                
+                try {
+                    gainNode.gain.cancelScheduledValues(ctx.currentTime);
+                    gainNode.gain.setValueAtTime(gainNode.gain.value, ctx.currentTime);
+                    gainNode.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.12);
+                    
+                    setTimeout(() => {
+                        try {
+                            source.stop();
+                            source.disconnect();
+                        } catch (e) {}
+                    }, 150);
+                } catch (e) {
+                    console.log("Error stopping slide sound:", e);
+                }
+            };
+
+            // Sync isDragging state with ref and trigger slide sound loop
+            useEffect(() => {
+                isDraggingRef.current = isDragging;
+                if (isDragging) {
+                    startSlideSound();
+                } else {
+                    stopSlideSound();
+                }
+            }, [isDragging]);
             
             // Mutable references for animation loop parameters
             const timeRef = useRef(0);
@@ -830,6 +917,14 @@
                     // Calculate physical movement speed (delta)
                     const deltaX = targetX - prevXRef.current;
                     prevXRef.current = targetX;
+
+                    // Dynamically modulate sliding sound gain based on movement speed
+                    if (isDraggingRef.current && slideGainNodeRef.current && audioContextRef.current) {
+                        const sCtx = audioContextRef.current;
+                        const speed = Math.abs(deltaX);
+                        const targetGain = Math.min(speed * 0.035, 0.75);
+                        slideGainNodeRef.current.gain.setTargetAtTime(targetGain, sCtx.currentTime, 0.06);
+                    }
 
                     // Adjust time increment based on movement velocity
                     const dt = Math.abs(deltaX) > 0.01 ? 0.015 : 0.003;
