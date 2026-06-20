@@ -424,6 +424,18 @@
             const lastTouchTimeRef = useRef(0);
             const touchStartRef = useRef({ x: 0, y: 0 });
             const touchDirectionRef = useRef(null);
+            const isScrollingWheelRef = useRef(false);
+            const clickSoundRef = useRef(new Audio('./click.mp3'));
+
+            const playClickSound = () => {
+                const audio = clickSoundRef.current;
+                if (audio) {
+                    audio.currentTime = 0;
+                    audio.play().catch(err => {
+                        console.log("Audio play blocked:", err);
+                    });
+                }
+            };
             
             // Mutable references for animation loop parameters
             const timeRef = useRef(0);
@@ -468,6 +480,13 @@
             const updateScrollOffset = (val) => {
                 const len = locations.length;
                 const normalized = (val % len + len) % len;
+                
+                const prevRound = Math.round(scrollOffsetRef.current);
+                const nextRound = Math.round(normalized);
+                if (prevRound !== nextRound) {
+                    playClickSound();
+                }
+                
                 scrollOffsetRef.current = normalized;
                 setScrollOffset(normalized);
             };
@@ -522,6 +541,8 @@
                     }
                     e.preventDefault();
                     
+                    isScrollingWheelRef.current = true;
+                    
                     // Accumulate velocity based on scroll direction (deltaY)
                     velocityRef.current += e.deltaY * 0.0008;
                     
@@ -533,9 +554,10 @@
                     targetIndexRef.current = null; // override snap targets during scroll
                     handleSidebarInteraction();
                     
-                    // Reset inactivity timer when wheel stops
+                    // Reset inactivity timer and wheel scroll state when wheel stops
                     clearTimeout(wheelTimeout);
                     wheelTimeout = setTimeout(() => {
+                        isScrollingWheelRef.current = false;
                         resetInactivityTimer();
                     }, 150);
                 };
@@ -645,7 +667,8 @@
 
                     if (!isDraggingSidebarRef.current) {
                         // If we don't have a target index yet, check if velocity is low enough to start snapping
-                        if (targetIndexRef.current === null && Math.abs(velocityRef.current) < 0.05) {
+                        // But only when not actively scrolling with the wheel
+                        if (targetIndexRef.current === null && !isScrollingWheelRef.current && Math.abs(velocityRef.current) < 0.05) {
                             const len = locations.length;
                             targetIndexRef.current = (Math.round(scrollOffsetRef.current) % len + len) % len;
                         }
@@ -912,7 +935,7 @@
                                 if (isCollapsed) {
                                     scaleVal = 0.8;
                                 } else {
-                                    scaleVal = (1 - Math.abs(offset) * 0.08) + 0.15 * Math.max(0, 1 - Math.abs(offset));
+                                    scaleVal = (1 - Math.abs(offset) * 0.05) + 0.15 * Math.max(0, 1 - Math.abs(offset));
                                     if (scaleVal < 0.5) scaleVal = 0.5;
                                 }
                                 
