@@ -452,8 +452,9 @@
             const audioContextRef = useRef(null);
             const audioBufferRef = useRef(null);
             const slideBufferRef = useRef(null);
-            const slideSourceRef = useRef(null);
-            const slideGainNodeRef = useRef(null);
+            const slideGainNodeRef = useRef(null); // acts as Master Gain Node for velocity modulation
+            const activeVoicesRef = useRef([]); // tracks overlapping voices
+            const spawnIntervalRef = useRef(null);
             const isDraggingRef = useRef(false);
 
             // Preload click and slide sounds via Web Audio API and decode them in memory
@@ -547,47 +548,97 @@
                     ctx.resume();
                 }
                 
-                if (slideSourceRef.current) return; // already active
-                
-                try {
-                    const source = ctx.createBufferSource();
-                    source.buffer = buffer;
-                    source.loop = true;
-                    
-                    const gainNode = ctx.createGain();
-                    gainNode.gain.setValueAtTime(0, ctx.currentTime);
-                    
-                    source.connect(gainNode);
-                    gainNode.connect(ctx.destination);
-                    
-                    source.start(0);
-                    
-                    slideSourceRef.current = source;
-                    slideGainNodeRef.current = gainNode;
-                } catch (e) {
-                    console.log("Error starting slide sound:", e);
+                // Ensure master gain node exists and is connected
+                if (!slideGainNodeRef.current) {
+                    const masterGain = ctx.createGain();
+                    masterGain.gain.setValueAtTime(0, ctx.currentTime);
+                    masterGain.connect(ctx.destination);
+                    slideGainNodeRef.current = masterGain;
                 }
+                
+                // If interval is already active, don't spawn another one
+                if (spawnIntervalRef.current) return;
+                
+                const playVoice = () => {
+                    try {
+                        const voiceSource = ctx.createBufferSource();
+                        voiceSource.buffer = buffer;
+                        
+                        const voiceGain = ctx.createGain();
+                        voiceGain.gain.setValueAtTime(0, ctx.currentTime);
+                        
+                        // Connect voice to master gain node
+                        voiceSource.connect(voiceGain);
+                        voiceGain.connect(slideGainNodeRef.current);
+                        
+                        const duration = buffer.duration; // ~0.64s
+                        const now = ctx.currentTime;
+                        
+                        // Local fade-in (100ms)
+                        voiceGain.gain.linearRampToValueAtTime(1, now + 0.1);
+                        // Hold full volume until fade-out start
+                        voiceGain.gain.setValueAtTime(1, now + 0.3);
+                        // Local fade-out (300ms) to crossfade with the next voice
+                        voiceGain.gain.linearRampToValueAtTime(0, now + duration - 0.04);
+                        
+                        voiceSource.start(0);
+                        voiceSource.stop(now + duration);
+                        
+                        const voiceObj = { source: voiceSource, gainNode: voiceGain };
+                        activeVoicesRef.current.push(voiceObj);
+                        
+                        // Clean up node resources after playback completes
+                        setTimeout(() => {
+                            try {
+                                voiceSource.disconnect();
+                                voiceGain.disconnect();
+                            } catch (e) {}
+                            activeVoicesRef.current = activeVoicesRef.current.filter(v => v !== voiceObj);
+                        }, duration * 1000 + 100);
+                    } catch (err) {
+                        console.log("Error playing slide voice:", err);
+                    }
+                };
+                
+                // Play first voice immediately
+                playVoice();
+                
+                // Spawn overlapping voices every 300ms (buffer duration is ~640ms)
+                spawnIntervalRef.current = setInterval(playVoice, 300);
             };
 
             const stopSlideSound = () => {
                 const ctx = audioContextRef.current;
-                const source = slideSourceRef.current;
-                const gainNode = slideGainNodeRef.current;
+                const masterGain = slideGainNodeRef.current;
                 
-                if (!ctx || !source || !gainNode) return;
+                if (spawnIntervalRef.current) {
+                    clearInterval(spawnIntervalRef.current);
+                    spawnIntervalRef.current = null;
+                }
                 
-                slideSourceRef.current = null;
+                if (!ctx || !masterGain) return;
+                
+                // Immediately set master gain ref to null so renderLightning stops updating it
                 slideGainNodeRef.current = null;
                 
                 try {
-                    gainNode.gain.cancelScheduledValues(ctx.currentTime);
-                    gainNode.gain.setValueAtTime(gainNode.gain.value, ctx.currentTime);
-                    gainNode.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.12);
+                    masterGain.gain.cancelScheduledValues(ctx.currentTime);
+                    masterGain.gain.setValueAtTime(masterGain.gain.value, ctx.currentTime);
+                    masterGain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.12);
+                    
+                    const voicesToStop = [...activeVoicesRef.current];
+                    activeVoicesRef.current = [];
                     
                     setTimeout(() => {
+                        voicesToStop.forEach(voice => {
+                            try {
+                                voice.source.stop();
+                                voice.source.disconnect();
+                                voice.gainNode.disconnect();
+                            } catch (e) {}
+                        });
                         try {
-                            source.stop();
-                            source.disconnect();
+                            masterGain.disconnect();
                         } catch (e) {}
                     }, 150);
                 } catch (e) {
@@ -603,6 +654,11 @@
                 } else {
                     stopSlideSound();
                 }
+                return () => {
+                    if (spawnIntervalRef.current) {
+                        clearInterval(spawnIntervalRef.current);
+                    }
+                };
             }, [isDragging]);
             
             // Mutable references for animation loop parameters
