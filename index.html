@@ -500,7 +500,20 @@
                 if (ctx && buffer) {
                     const source = ctx.createBufferSource();
                     source.buffer = buffer;
-                    source.connect(ctx.destination);
+                    
+                    // Create lowpass filter to muffle the click sound ("глуше")
+                    const filter = ctx.createBiquadFilter();
+                    filter.type = 'lowpass';
+                    filter.frequency.value = 1200; // cutoff frequency in Hz
+                    
+                    // Create gain node to make the sound subtle and soft
+                    const gainNode = ctx.createGain();
+                    gainNode.gain.value = 0.6;
+                    
+                    source.connect(filter);
+                    filter.connect(gainNode);
+                    gainNode.connect(ctx.destination);
+                    
                     source.start(0);
                 }
             };
