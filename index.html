@@ -962,14 +962,14 @@
                         }
 
                         // Track distance moved and trigger click sounds
-                        if (speed > 0.1) {
+                        if (speed > 0) {
                             distanceMovedRef.current += speed;
-                            const threshold = 12; // pixels of movement required to trigger a click sound
+                            const threshold = 8; // highly responsive threshold (8px) for slow movement
                             
                             if (distanceMovedRef.current >= threshold) {
                                 const now = sCtx.currentTime;
-                                // Limit max rate of clicks to 45ms spacing (approx 22 clicks/sec max) for sound clarity
-                                if (now - lastClickTimeRef.current >= 0.045) {
+                                // Limit max rate of clicks to 30ms spacing (approx 33 clicks/sec max) for a fast ratchet sound
+                                if (now - lastClickTimeRef.current >= 0.030) {
                                     try {
                                         const voiceSource = sCtx.createBufferSource();
                                         voiceSource.buffer = slideBufferRef.current;
@@ -993,11 +993,12 @@
                                     } catch (err) {
                                         console.log("Error playing distance-based click:", err);
                                     }
+                                } else {
+                                    // If threshold is reached but it's too soon to click, cap it at threshold
+                                    // to wait for the minimum spacing time before firing.
+                                    distanceMovedRef.current = threshold;
                                 }
                             }
-                        } else {
-                            // Reset distance moved accumulator when movement stops
-                            distanceMovedRef.current = 0;
                         }
                     }
 
