@@ -922,8 +922,10 @@
                     if (isDraggingRef.current && slideGainNodeRef.current && audioContextRef.current) {
                         const sCtx = audioContextRef.current;
                         const speed = Math.abs(deltaX);
-                        const targetGain = Math.min(speed * 0.035, 0.75);
-                        slideGainNodeRef.current.gain.setTargetAtTime(targetGain, sCtx.currentTime, 0.06);
+                        // Add a minimum floor of 0.06 so the sound never becomes completely silent or cuts out while dragging
+                        const targetGain = Math.min(0.06 + speed * 0.045, 0.75);
+                        // Reduced time constant by half (from 0.06 to 0.03) for a 2x faster fade-in response
+                        slideGainNodeRef.current.gain.setTargetAtTime(targetGain, sCtx.currentTime, 0.03);
                     }
 
                     // Adjust time increment based on movement velocity
