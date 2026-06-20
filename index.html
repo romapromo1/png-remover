@@ -161,47 +161,67 @@
         /* Individual Card styles */
         .carousel-card {
             position: absolute;
+            top: 50%;
             left: 50%;
             margin-left: -45px; /* half of 90px width */
+            margin-top: -34px;  /* half of 68px height */
             width: 90px;
             height: 68px;
-            background: rgba(255, 255, 255, 0.02);
-            border: 1px solid rgba(255, 255, 255, 0.12);
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.15);
             border-radius: 14px;
             cursor: pointer;
             perspective: 800px;
-            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4), inset 0 0 10px rgba(255, 255, 255, 0.05);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4), inset 0 0 10px rgba(255, 255, 255, 0.05);
             transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1), 
                         opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1), 
                         border-color 0.4s ease, 
                         box-shadow 0.4s ease;
-            overflow: visible;
+            overflow: hidden;
             z-index: 5;
         }
 
         .carousel-card img {
             width: 100%;
             height: 100%;
-            border-radius: 12px;
             object-fit: cover;
             transition: all 0.5s cubic-bezier(0.25, 0.8, 0.25, 1);
+            pointer-events: none;
+        }
+
+        /* Glass sheen reflection overlay for authentic liquid glass look */
+        .card-glass-reflection {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(
+                135deg,
+                rgba(255, 255, 255, 0.22) 0%,
+                rgba(255, 255, 255, 0) 50%,
+                rgba(255, 255, 255, 0.08) 100%
+            );
+            border-radius: inherit;
+            pointer-events: none;
+            z-index: 2;
         }
 
         /* 3D hover effects when list is active and card is not central */
         .carousel-card.clickable:hover {
             transform: translate3d(0, var(--card-translate-y), 0) scale(1.08) rotateX(12deg) rotateY(-8deg) !important;
             border-color: rgba(212, 175, 55, 0.5);
-            background: rgba(212, 175, 55, 0.05);
-            box-shadow: 0 12px 25px rgba(212, 175, 55, 0.2), 
-                        inset 0 0 12px rgba(255, 255, 255, 0.15);
+            background: rgba(212, 175, 55, 0.08);
+            box-shadow: 0 12px 25px rgba(212, 175, 55, 0.25), 
+                        inset 0 0 12px rgba(255, 255, 255, 0.18);
         }
 
         /* Expanded Active (Central) Card */
         .carousel-card.active-center {
             border-color: var(--accent-gold);
-            background: rgba(212, 175, 55, 0.15);
-            box-shadow: 0 15px 35px rgba(212, 175, 55, 0.4), 
-                        inset 0 0 18px rgba(212, 175, 55, 0.2);
+            background: rgba(212, 175, 55, 0.18);
+            box-shadow: 0 15px 35px rgba(212, 175, 55, 0.45), 
+                        inset 0 0 18px rgba(212, 175, 55, 0.25);
             z-index: 10;
         }
 
@@ -212,12 +232,14 @@
         /* "ЕЩЁ" Card */
         .card-more {
             position: absolute;
+            top: 50%;
             left: 50%;
             margin-left: -45px;
+            margin-top: -34px;
             width: 90px;
             height: 68px;
-            background: rgba(255, 255, 255, 0.04);
-            border: 1px solid rgba(255, 255, 255, 0.18);
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.2);
             border-radius: 14px;
             backdrop-filter: blur(25px) saturate(180%);
             -webkit-backdrop-filter: blur(25px) saturate(180%);
@@ -225,16 +247,19 @@
             justify-content: center;
             align-items: center;
             cursor: pointer;
-            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4), inset 0 0 10px rgba(255, 255, 255, 0.05);
-            transition: all 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4), inset 0 0 12px rgba(255, 255, 255, 0.1);
+            transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1),
+                        opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1),
+                        border-color 0.4s ease,
+                        box-shadow 0.4s ease;
             z-index: 15;
-            overflow: visible;
+            overflow: hidden;
         }
 
         .card-more:hover {
             transform: scale(1.1) rotateX(12deg) rotateY(-8deg);
             border-color: var(--accent-gold);
-            box-shadow: 0 15px 35px rgba(212, 175, 55, 0.3), inset 0 0 15px rgba(212, 175, 55, 0.2);
+            box-shadow: 0 15px 35px rgba(212, 175, 55, 0.35), inset 0 0 15px rgba(212, 175, 55, 0.25);
         }
 
         .card-more-text {
@@ -246,6 +271,7 @@
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             filter: drop-shadow(0 0 5px rgba(212, 175, 55, 0.4));
+            z-index: 3;
         }
 
         /* Spinner Overlay */
@@ -349,6 +375,17 @@
             }
         ];
 
+        const getCircularOffset = (index, activeIndex, total) => {
+            let diff = index - activeIndex;
+            const half = total / 2;
+            if (diff > half) {
+                diff -= total;
+            } else if (diff <= -half) {
+                diff += total;
+            }
+            return diff;
+        };
+
         function App() {
             const [activeLocIndex, setActiveLocIndex] = useState(0);
             const [sliderPos, setSliderPos] = useState(50); // Set default to 50% split
@@ -358,15 +395,38 @@
             const [beforeLoaded, setBeforeLoaded] = useState(false);
             const [afterLoaded, setAfterLoaded] = useState(false);
 
+            // Floating point scroll offset for smooth momentum scrolling
+            const [scrollOffset, setScrollOffset] = useState(0);
+
             const containerRef = useRef(null);
             const canvasRef = useRef(null);
             const timerRef = useRef(null);
+            const sidebarRef = useRef(null);
+
+            // Scroll dynamics refs
+            const scrollOffsetRef = useRef(0);
+            const velocityRef = useRef(0);
+            const targetIndexRef = useRef(0);
+            const isDraggingSidebarRef = useRef(false);
+            const lastTouchYRef = useRef(0);
+            const lastTouchTimeRef = useRef(0);
             
             // Mutable references for animation loop parameters
             const timeRef = useRef(0);
             const sliderPosRef = useRef(50);
             const prevXRef = useRef(null);
             const [winSize, setWinSize] = useState({ w: window.innerWidth, h: window.innerHeight });
+
+            // Sync refs for the animation loops
+            const activeLocIndexRef = useRef(0);
+            useEffect(() => {
+                activeLocIndexRef.current = activeLocIndex;
+            }, [activeLocIndex]);
+
+            const isCollapsedRef = useRef(true);
+            useEffect(() => {
+                isCollapsedRef.current = isCollapsed;
+            }, [isCollapsed]);
 
             // Keep reference updated to read the latest state inside animation frames
             useEffect(() => {
@@ -390,7 +450,15 @@
                 return () => window.removeEventListener('resize', handleResize);
             }, []);
 
-            // Inactivity timer logic for sidebar collapse
+            // Helper to update both state and ref for scroll offset
+            const updateScrollOffset = (val) => {
+                const len = locations.length;
+                const normalized = (val % len + len) % len;
+                scrollOffsetRef.current = normalized;
+                setScrollOffset(normalized);
+            };
+
+            // Inactivity timer logic (only for touch-based devices / mobile collapse)
             const resetInactivityTimer = () => {
                 if (timerRef.current) {
                     clearTimeout(timerRef.current);
@@ -402,11 +470,16 @@
 
             const handleSidebarInteraction = () => {
                 setIsCollapsed(false);
-                resetInactivityTimer();
+                if (timerRef.current) {
+                    clearTimeout(timerRef.current);
+                }
             };
 
             const handleSidebarMouseLeave = () => {
-                resetInactivityTimer();
+                setIsCollapsed(true);
+                if (timerRef.current) {
+                    clearTimeout(timerRef.current);
+                }
             };
 
             // Cleanup timer on unmount
@@ -414,6 +487,143 @@
                 return () => {
                     if (timerRef.current) clearTimeout(timerRef.current);
                 };
+            }, []);
+
+            const triggerActiveLocationUpdate = (idx) => {
+                const targetIdx = (idx + locations.length) % locations.length;
+                setActiveLocIndex(targetIdx);
+                setBeforeLoaded(false);
+                setAfterLoaded(false);
+            };
+
+            // Wheel event listener (manual scrolling with wheel)
+            useEffect(() => {
+                const sidebar = sidebarRef.current;
+                if (!sidebar) return;
+
+                const onWheelEvent = (e) => {
+                    if (isCollapsedRef.current) return;
+                    e.preventDefault();
+                    
+                    // Accumulate velocity based on scroll direction
+                    velocityRef.current += e.deltaY * 0.0006;
+                    targetIndexRef.current = null; // override snap targets during scroll
+                    handleSidebarInteraction();
+                };
+
+                sidebar.addEventListener('wheel', onWheelEvent, { passive: false });
+                return () => sidebar.removeEventListener('wheel', onWheelEvent);
+            }, []);
+
+            // Touch swiping handlers for iPad / touch screen devices
+            const handleTouchStartSidebar = (e) => {
+                if (isCollapsed) return;
+                e.stopPropagation();
+                isDraggingSidebarRef.current = true;
+                lastTouchYRef.current = e.touches[0].clientY;
+                lastTouchTimeRef.current = performance.now();
+                velocityRef.current = 0;
+                targetIndexRef.current = null;
+                handleSidebarInteraction();
+            };
+
+            const handleTouchMoveSidebar = (e) => {
+                if (!isDraggingSidebarRef.current) return;
+                e.stopPropagation();
+                const currentY = e.touches[0].clientY;
+                const currentTime = performance.now();
+                const deltaY = currentY - lastTouchYRef.current;
+                const timeDelta = currentTime - lastTouchTimeRef.current;
+
+                // 85px = 1 item height offset unit
+                const deltaOffset = -deltaY / 85;
+                const newOffset = scrollOffsetRef.current + deltaOffset;
+                updateScrollOffset(newOffset);
+
+                if (timeDelta > 0) {
+                    velocityRef.current = deltaOffset / timeDelta * 16.67;
+                }
+
+                lastTouchYRef.current = currentY;
+                lastTouchTimeRef.current = currentTime;
+                handleSidebarInteraction();
+            };
+
+            const handleTouchEndSidebar = (e) => {
+                if (!isDraggingSidebarRef.current) return;
+                isDraggingSidebarRef.current = false;
+                
+                // If scroll velocity is low, snap to nearest card immediately
+                if (Math.abs(velocityRef.current) < 0.05) {
+                    targetIndexRef.current = Math.round(scrollOffsetRef.current) % locations.length;
+                }
+                
+                // Start collapse timer since user finished touching (mobile mode)
+                resetInactivityTimer();
+            };
+
+            const handleCardInteraction = (locIdx) => {
+                targetIndexRef.current = locIdx;
+                handleSidebarInteraction();
+            };
+
+            // Physics Update Loop: handles inertia damping and spring-to-target alignment
+            useEffect(() => {
+                let animationFrameId;
+
+                const updatePhysics = () => {
+                    if (isCollapsedRef.current) {
+                        animationFrameId = requestAnimationFrame(updatePhysics);
+                        return;
+                    }
+
+                    if (!isDraggingSidebarRef.current) {
+                        // Apply friction / inertia decay
+                        if (Math.abs(velocityRef.current) > 0.001) {
+                            let nextOffset = scrollOffsetRef.current + velocityRef.current;
+                            velocityRef.current *= 0.93; // friction
+                            updateScrollOffset(nextOffset);
+                        } else {
+                            velocityRef.current = 0;
+                            
+                            // Once static and not snapped, set snap target to nearest index
+                            if (targetIndexRef.current === null) {
+                                targetIndexRef.current = Math.round(scrollOffsetRef.current) % locations.length;
+                            }
+                        }
+
+                        // Spring snapping interpolation (Ease-in-out scroll)
+                        if (targetIndexRef.current !== null) {
+                            const current = scrollOffsetRef.current;
+                            const target = targetIndexRef.current;
+                            const diff = getCircularOffset(target, current, locations.length);
+
+                            if (Math.abs(diff) > 0.001) {
+                                // Linear interpolation step mimics easing curve
+                                const step = diff * 0.13;
+                                updateScrollOffset(current + step);
+                            } else {
+                                updateScrollOffset(target);
+                                if (target !== activeLocIndexRef.current) {
+                                    triggerActiveLocationUpdate(target);
+                                }
+                            }
+                        }
+                    }
+
+                    // Dynamically trigger location change when target index gets very close to center
+                    if (targetIndexRef.current !== null) {
+                        const dist = Math.abs(getCircularOffset(targetIndexRef.current, scrollOffsetRef.current, locations.length));
+                        if (dist < 0.18 && targetIndexRef.current !== activeLocIndexRef.current) {
+                            triggerActiveLocationUpdate(targetIndexRef.current);
+                        }
+                    }
+
+                    animationFrameId = requestAnimationFrame(updatePhysics);
+                };
+
+                animationFrameId = requestAnimationFrame(updatePhysics);
+                return () => cancelAnimationFrame(animationFrameId);
             }, []);
 
             // Lightning Animation and Mask update Loop
@@ -586,25 +796,9 @@
                 setIsDragging(false);
             };
 
-            const handleCardClick = (offset) => {
-                if (offset === 0) return; // Central card clicked does nothing
-                
-                setBeforeLoaded(false);
-                setAfterLoaded(false);
-                
-                // Calculate next index in looped circular logic
-                const nextIndex = (activeLocIndex + offset + locations.length) % locations.length;
-                setActiveLocIndex(nextIndex);
-                
-                handleSidebarInteraction();
-            };
-
             const posRatio = sliderPos / 100;
             const isPageLoading = !beforeLoaded || !afterLoaded;
             const activeLoc = locations[activeLocIndex];
-
-            // Render offsets [-2, -1, 0, 1, 2] to create the vertical looped list
-            const visibleOffsets = [-2, -1, 0, 1, 2];
 
             return (
                 <div 
@@ -624,14 +818,17 @@
                 >
                     {/* Glassmorphic 3D Carousel Sidebar Container */}
                     <div 
+                        ref={sidebarRef}
                         className={`sidebar-carousel-container ${!isCollapsed ? 'expanded' : ''}`}
                         onMouseEnter={handleSidebarInteraction}
                         onMouseMove={handleSidebarInteraction}
                         onMouseLeave={handleSidebarMouseLeave}
                         onMouseDown={(e) => e.stopPropagation()}
-                        onTouchStart={(e) => {
-                            e.stopPropagation();
-                            handleSidebarInteraction();
+                        onTouchStart={handleTouchStartSidebar}
+                        onTouchMove={handleTouchMoveSidebar}
+                        onTouchEnd={handleTouchEndSidebar}
+                        style={{
+                            pointerEvents: isCollapsed ? 'none' : 'auto'
                         }}
                     >
                         {/* Glass tube track background */}
@@ -645,39 +842,72 @@
                                 transform: isCollapsed ? 'scale(1)' : 'scale(0.5)',
                                 pointerEvents: isCollapsed ? 'auto' : 'none'
                             }}
-                            onClick={handleSidebarInteraction}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                handleSidebarInteraction();
+                                resetInactivityTimer();
+                            }}
+                            onMouseEnter={(e) => {
+                                e.stopPropagation();
+                                handleSidebarInteraction();
+                            }}
                         >
+                            <div className="card-glass-reflection"></div>
                             <span className="card-more-text">ЕЩЁ</span>
                         </div>
 
-                        {/* Infinite vertical list cards */}
-                        {visibleOffsets.map((offset) => {
-                            const locIdx = (activeLocIndex + offset + locations.length) % locations.length;
-                            const loc = locations[locIdx];
+                        {/* Infinite vertical list cards mapping all locations with stable key */}
+                        {locations.map((loc, locIdx) => {
+                            const offset = getCircularOffset(locIdx, scrollOffset, locations.length);
                             
-                            // Calculate properties based on offset
+                            // Calculate properties based on offset and collapse state
                             const yTranslate = isCollapsed ? 0 : offset * 85;
-                            const scaleVal = isCollapsed 
-                                ? 0.8 
-                                : (offset === 0 ? 1.15 : (1 - Math.abs(offset) * 0.08));
-                            const opacityVal = isCollapsed ? 0 : (1 - Math.abs(offset) * 0.25);
+                            
+                            let scaleVal;
+                            if (isCollapsed) {
+                                scaleVal = 0.8;
+                            } else {
+                                scaleVal = (1 - Math.abs(offset) * 0.08) + 0.15 * Math.max(0, 1 - Math.abs(offset));
+                                if (scaleVal < 0.5) scaleVal = 0.5;
+                            }
+                            
+                            let opacityVal;
+                            if (isCollapsed) {
+                                opacityVal = 0;
+                            } else {
+                                opacityVal = 1 - Math.abs(offset) * 0.25;
+                                if (opacityVal < 0) opacityVal = 0;
+                            }
                             
                             const cardStyle = {
                                 '--card-translate-y': `${yTranslate}px`,
                                 transform: `translate3d(0, ${yTranslate}px, 0) scale(${scaleVal})`,
                                 opacity: opacityVal,
-                                pointerEvents: (!isCollapsed && offset !== 0) ? 'auto' : 'none'
+                                pointerEvents: (!isCollapsed && Math.abs(offset) <= 2.2) ? 'auto' : 'none',
+                                zIndex: Math.round(offset === 0 ? 10 : (10 - Math.abs(offset)))
                             };
 
-                            const cardClass = `carousel-card ${offset === 0 ? 'active-center' : ''} ${(!isCollapsed && offset !== 0) ? 'clickable' : ''}`;
+                            const isInteractive = !isCollapsed && Math.abs(offset) <= 2.2;
+                            const isCenter = Math.abs(offset) < 0.5;
+                            const cardClass = `carousel-card ${isCenter ? 'active-center' : ''} ${isInteractive && !isCenter ? 'clickable' : ''}`;
 
                             return (
                                 <div 
-                                    key={`${loc.id}-${offset}`}
+                                    key={loc.id}
                                     className={cardClass}
                                     style={cardStyle}
-                                    onClick={() => handleCardClick(offset)}
+                                    onMouseEnter={() => {
+                                        if (isInteractive) {
+                                            handleCardInteraction(locIdx);
+                                        }
+                                    }}
+                                    onClick={() => {
+                                        if (isInteractive) {
+                                            handleCardInteraction(locIdx);
+                                        }
+                                    }}
                                 >
+                                    <div className="card-glass-reflection"></div>
                                     <img 
                                         src={loc.after} 
                                         alt={loc.id} 
