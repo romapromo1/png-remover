@@ -461,6 +461,8 @@
             const isDraggingRef = useRef(false);
             const distanceMovedRef = useRef(0);
             const lastClickTimeRef = useRef(0);
+            const sidebarToggleBufferRef = useRef(null);
+            const isFirstRenderRef = useRef(true);
 
             // Preload click and slide sounds via Web Audio API and decode them in memory
             useEffect(() => {
@@ -499,6 +501,21 @@
                             }
                         })
                         .catch(err => console.log("Web Audio preloading slide click failed:", err));
+
+                    // Load sidebar toggle sound
+                    fetch('./sidebar_toggle.mp3')
+                        .then(response => response.arrayBuffer())
+                        .then(arrayBuffer => {
+                            if (audioContextRef.current) {
+                                return audioContextRef.current.decodeAudioData(arrayBuffer);
+                            }
+                        })
+                        .then(audioBuffer => {
+                            if (audioBuffer) {
+                                sidebarToggleBufferRef.current = audioBuffer;
+                            }
+                        })
+                        .catch(err => console.log("Web Audio preloading sidebar toggle failed:", err));
                 };
 
                 const unlock = () => {
@@ -543,6 +560,37 @@
                     source.start(0);
                 }
             };
+
+            const playSidebarToggleSound = () => {
+                const ctx = audioContextRef.current;
+                const buffer = sidebarToggleBufferRef.current;
+                if (ctx && buffer) {
+                    const source = ctx.createBufferSource();
+                    source.buffer = buffer;
+                    
+                    const filter = ctx.createBiquadFilter();
+                    filter.type = 'lowpass';
+                    filter.frequency.value = 1600; // warm cutoff frequency in Hz
+                    
+                    const gainNode = ctx.createGain();
+                    gainNode.gain.value = 0.7; // default toggle volume
+                    
+                    source.connect(filter);
+                    filter.connect(gainNode);
+                    gainNode.connect(ctx.destination);
+                    
+                    source.start(0);
+                }
+            };
+
+            // Trigger sidebar toggle sound when sidebar expands/collapses (isCollapsed changes)
+            useEffect(() => {
+                if (isFirstRenderRef.current) {
+                    isFirstRenderRef.current = false;
+                    return;
+                }
+                playSidebarToggleSound();
+            }, [isCollapsed]);
 
             const startSlideSound = () => {
                 const ctx = audioContextRef.current;
