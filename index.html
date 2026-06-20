@@ -573,13 +573,13 @@
                     filter.type = 'lowpass';
                     filter.frequency.value = 1000;
                     
-                    // Dynamics compressor to tighten the transient response
+                    // Dynamics compressor with higher compression ratio and lower threshold
                     const compressor = ctx.createDynamicsCompressor();
-                    compressor.threshold.setValueAtTime(-20, ctx.currentTime);
-                    compressor.knee.setValueAtTime(24, ctx.currentTime);
-                    compressor.ratio.setValueAtTime(4, ctx.currentTime);
-                    compressor.attack.setValueAtTime(0.005, ctx.currentTime);
-                    compressor.release.setValueAtTime(0.06, ctx.currentTime);
+                    compressor.threshold.setValueAtTime(-40, ctx.currentTime);
+                    compressor.knee.setValueAtTime(8, ctx.currentTime);
+                    compressor.ratio.setValueAtTime(12, ctx.currentTime);
+                    compressor.attack.setValueAtTime(0.003, ctx.currentTime);
+                    compressor.release.setValueAtTime(0.05, ctx.currentTime);
                     
                     // Gain: set to 0.3
                     const gainNode = ctx.createGain();
