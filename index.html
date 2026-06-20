@@ -453,9 +453,10 @@
             const audioBufferRef = useRef(null);
             const slideBufferRef = useRef(null);
             const slideGainNodeRef = useRef(null); // acts as Master Gain Node for velocity modulation
-            const activeVoicesRef = useRef([]); // tracks scheduled voices { source, gainNode, stopTime }
+            const activeVoicesRef = useRef([]); // tracks scheduled voices { source, stopTime }
             const schedulerIntervalRef = useRef(null);
             const nextVoiceTimeRef = useRef(0);
+            const currentSpeedRef = useRef(0);
             const isDraggingRef = useRef(false);
 
             // Preload click and slide sounds via Web Audio API and decode them in memory
@@ -481,8 +482,8 @@
                         })
                         .catch(err => console.log("Web Audio preloading click failed:", err));
 
-                    // Load slide sound
-                    fetch('./slide.mp3')
+                    // Load slide click sound
+                    fetch('./slide_click.mp3')
                         .then(response => response.arrayBuffer())
                         .then(arrayBuffer => {
                             if (audioContextRef.current) {
@@ -494,7 +495,7 @@
                                 slideBufferRef.current = audioBuffer;
                             }
                         })
-                        .catch(err => console.log("Web Audio preloading slide failed:", err));
+                        .catch(err => console.log("Web Audio preloading slide click failed:", err));
                 };
 
                 const unlock = () => {
@@ -565,44 +566,43 @@
                 
                 const scheduler = () => {
                     const now = ctx.currentTime;
-                    const lookAhead = 0.4; // schedule voices 400ms in advance
-                    const spacing = 0.3;   // spacing between voice starts (300ms)
+                    const lookAhead = 0.3; // schedule voices 300ms in advance
+                    const speed = currentSpeedRef.current || 0;
                     const duration = buffer.duration; // buffer length
                     
-                    // Schedule next voices that fall within the look-ahead window
-                    while (nextVoiceTimeRef.current < now + lookAhead) {
-                        try {
-                            const voiceTime = nextVoiceTimeRef.current;
-                            
-                            const voiceSource = ctx.createBufferSource();
-                            voiceSource.buffer = buffer;
-                            
-                            const voiceGain = ctx.createGain();
-                            voiceGain.gain.setValueAtTime(0, voiceTime);
-                            
-                            // Connect voice to master gain
-                            voiceSource.connect(voiceGain);
-                            voiceGain.connect(slideGainNodeRef.current);
-                            
-                            // Schedule linear envelope relative to voice start time
-                            voiceGain.gain.setValueAtTime(0, voiceTime);
-                            voiceGain.gain.linearRampToValueAtTime(1, voiceTime + 0.1);
-                            voiceGain.gain.setValueAtTime(1, voiceTime + 0.3);
-                            voiceGain.gain.linearRampToValueAtTime(0, voiceTime + duration - 0.04);
-                            
-                            voiceSource.start(voiceTime);
-                            voiceSource.stop(voiceTime + duration);
-                            
-                            activeVoicesRef.current.push({
-                                source: voiceSource,
-                                gainNode: voiceGain,
-                                stopTime: voiceTime + duration
-                            });
-                        } catch (err) {
-                            console.log("Error scheduling voice:", err);
-                        }
+                    // Only schedule new clicks if the user is moving the slider
+                    if (speed > 0.05) {
+                        // Calculate spacing based on movement speed: faster = shorter spacing
+                        // Capped between 40ms (0.04s) and 600ms (0.6s)
+                        const spacing = Math.max(0.04, 0.35 / (0.2 + speed * 0.4));
                         
-                        nextVoiceTimeRef.current += spacing;
+                        while (nextVoiceTimeRef.current < now + lookAhead) {
+                            try {
+                                const voiceTime = nextVoiceTimeRef.current;
+                                
+                                const voiceSource = ctx.createBufferSource();
+                                voiceSource.buffer = buffer;
+                                
+                                // Connect voice directly to master gain (clicks play naturally without extra local envelopes)
+                                voiceSource.connect(slideGainNodeRef.current);
+                                
+                                voiceSource.start(voiceTime);
+                                voiceSource.stop(voiceTime + duration);
+                                
+                                activeVoicesRef.current.push({
+                                    source: voiceSource,
+                                    stopTime: voiceTime + duration
+                                });
+                            } catch (err) {
+                                console.log("Error scheduling click voice:", err);
+                            }
+                            
+                            nextVoiceTimeRef.current += spacing;
+                        }
+                    } else {
+                        // If slider is stationary, reset nextVoiceTime to current time
+                        // so that as soon as movement resumes, a click plays immediately
+                        nextVoiceTimeRef.current = now;
                     }
                     
                     // Clean up completed voices
@@ -613,7 +613,6 @@
                         if (voice.stopTime < now) {
                             try {
                                 voice.source.disconnect();
-                                voice.gainNode.disconnect();
                             } catch (e) {}
                         } else {
                             remaining.push(voice);
@@ -646,7 +645,7 @@
                 try {
                     masterGain.gain.cancelScheduledValues(ctx.currentTime);
                     masterGain.gain.setValueAtTime(masterGain.gain.value, ctx.currentTime);
-                    masterGain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.12);
+                    masterGain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.08);
                     
                     const voicesToStop = [...activeVoicesRef.current];
                     activeVoicesRef.current = [];
@@ -656,13 +655,12 @@
                             try {
                                 voice.source.stop();
                                 voice.source.disconnect();
-                                voice.gainNode.disconnect();
                             } catch (e) {}
                         });
                         try {
                             masterGain.disconnect();
                         } catch (e) {}
-                    }, 150);
+                    }, 100);
                 } catch (e) {
                     console.log("Error stopping slide sound:", e);
                 }
@@ -996,14 +994,16 @@
                     const deltaX = targetX - prevXRef.current;
                     prevXRef.current = targetX;
 
+                    // Save speed for the audio scheduler
+                    currentSpeedRef.current = Math.abs(deltaX);
+
                     // Dynamically modulate sliding sound gain based on movement speed
                     if (isDraggingRef.current && slideGainNodeRef.current && audioContextRef.current) {
                         const sCtx = audioContextRef.current;
                         const speed = Math.abs(deltaX);
-                        // Add a minimum floor of 0.06 so the sound never becomes completely silent or cuts out while dragging
-                        const targetGain = Math.min(0.06 + speed * 0.045, 0.75);
-                        // Reduced time constant by half (from 0.06 to 0.03) for a 2x faster fade-in response
-                        slideGainNodeRef.current.gain.setTargetAtTime(targetGain, sCtx.currentTime, 0.03);
+                        // Make click volume range between 0.35 (slow movement) and 0.75 (fast movement)
+                        const targetGain = Math.min(0.35 + speed * 0.03, 0.75);
+                        slideGainNodeRef.current.gain.setTargetAtTime(targetGain, sCtx.currentTime, 0.02);
                     }
 
                     // Adjust time increment based on movement velocity
