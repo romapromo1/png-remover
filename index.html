@@ -425,15 +425,61 @@
             const touchStartRef = useRef({ x: 0, y: 0 });
             const touchDirectionRef = useRef(null);
             const isScrollingWheelRef = useRef(false);
-            const clickSoundRef = useRef(new Audio('./click.mp3'));
+            
+            // Web Audio API refs for zero-latency UI sound effects
+            const audioContextRef = useRef(null);
+            const audioBufferRef = useRef(null);
+
+            // Preload click sound via Web Audio API and decode it in memory
+            useEffect(() => {
+                const initAudio = () => {
+                    if (audioContextRef.current) return;
+                    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+                    if (!AudioContextClass) return;
+                    audioContextRef.current = new AudioContextClass();
+                    
+                    fetch('./click.mp3')
+                        .then(response => response.arrayBuffer())
+                        .then(arrayBuffer => {
+                            if (audioContextRef.current) {
+                                return audioContextRef.current.decodeAudioData(arrayBuffer);
+                            }
+                        })
+                        .then(audioBuffer => {
+                            if (audioBuffer) {
+                                audioBufferRef.current = audioBuffer;
+                            }
+                        })
+                        .catch(err => console.log("Web Audio preloading failed:", err));
+                };
+
+                const unlock = () => {
+                    initAudio();
+                    if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
+                        audioContextRef.current.resume();
+                    }
+                };
+
+                // Unlock audio context on first mousedown/touchstart/wheel interaction
+                window.addEventListener('mousedown', unlock, { once: false });
+                window.addEventListener('touchstart', unlock, { once: false });
+                window.addEventListener('wheel', unlock, { once: false });
+
+                return () => {
+                    window.removeEventListener('mousedown', unlock);
+                    window.removeEventListener('touchstart', unlock);
+                    window.removeEventListener('wheel', unlock);
+                };
+            }, []);
 
             const playClickSound = () => {
-                const audio = clickSoundRef.current;
-                if (audio) {
-                    audio.currentTime = 0;
-                    audio.play().catch(err => {
-                        console.log("Audio play blocked:", err);
-                    });
+                const ctx = audioContextRef.current;
+                const buffer = audioBufferRef.current;
+                if (ctx && buffer) {
+                    const source = ctx.createBufferSource();
+                    source.buffer = buffer;
+                    source.connect(ctx.destination);
+                    source.start(0);
                 }
             };
             
