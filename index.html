@@ -130,7 +130,7 @@
             display: flex;
             justify-content: center;
             align-items: center;
-            overflow: hidden;
+            overflow: visible;
         }
 
         /* The glass tube background behind the cards (only visible when expanded) */
@@ -410,6 +410,8 @@
             const isDraggingSidebarRef = useRef(false);
             const lastTouchYRef = useRef(0);
             const lastTouchTimeRef = useRef(0);
+            const touchStartRef = useRef({ x: 0, y: 0 });
+            const touchDirectionRef = useRef(null);
             
             // Mutable references for animation loop parameters
             const timeRef = useRef(0);
@@ -496,74 +498,126 @@
                 setAfterLoaded(false);
             };
 
-            // Wheel event listener (manual scrolling with wheel)
+            // Global Wheel and Touch gesture handlers on container
             useEffect(() => {
-                const sidebar = sidebarRef.current;
-                if (!sidebar) return;
+                const container = containerRef.current;
+                if (!container) return;
 
+                let wheelTimeout;
                 const onWheelEvent = (e) => {
-                    if (isCollapsedRef.current) return;
+                    if (isCollapsedRef.current) {
+                        setIsCollapsed(false);
+                    }
                     e.preventDefault();
                     
-                    // Accumulate velocity based on scroll direction
-                    velocityRef.current += e.deltaY * 0.0006;
+                    // Accumulate velocity based on scroll direction (deltaY)
+                    velocityRef.current += e.deltaY * 0.0008;
+                    
+                    // Cap maximum velocity for smooth control
+                    const maxVel = 0.25;
+                    if (velocityRef.current > maxVel) velocityRef.current = maxVel;
+                    if (velocityRef.current < -maxVel) velocityRef.current = -maxVel;
+                    
                     targetIndexRef.current = null; // override snap targets during scroll
                     handleSidebarInteraction();
+                    
+                    // Reset inactivity timer when wheel stops
+                    clearTimeout(wheelTimeout);
+                    wheelTimeout = setTimeout(() => {
+                        resetInactivityTimer();
+                    }, 150);
                 };
 
-                sidebar.addEventListener('wheel', onWheelEvent, { passive: false });
-                return () => sidebar.removeEventListener('wheel', onWheelEvent);
+                const handleTouchStart = (e) => {
+                    if (e.touches.length === 0) return;
+                    const touch = e.touches[0];
+                    touchStartRef.current = { x: touch.clientX, y: touch.clientY };
+                    touchDirectionRef.current = null;
+                    isDraggingSidebarRef.current = false;
+                    lastTouchYRef.current = touch.clientY;
+                    lastTouchTimeRef.current = performance.now();
+                    velocityRef.current = 0;
+                };
+
+                const handleTouchMove = (e) => {
+                    if (e.touches.length === 0) return;
+                    const touch = e.touches[0];
+                    const deltaX = touch.clientX - touchStartRef.current.x;
+                    const deltaY = touch.clientY - touchStartRef.current.y;
+                    
+                    if (touchDirectionRef.current === null) {
+                        const distSq = deltaX * deltaX + deltaY * deltaY;
+                        if (distSq > 64) { // 8px threshold
+                            if (Math.abs(deltaX) > Math.abs(deltaY)) {
+                                touchDirectionRef.current = 'horizontal';
+                                setIsDragging(true);
+                                updatePosition(touch.clientX);
+                            } else {
+                                touchDirectionRef.current = 'vertical';
+                                isDraggingSidebarRef.current = true;
+                                targetIndexRef.current = null;
+                                setIsCollapsed(false);
+                                handleSidebarInteraction();
+                            }
+                        }
+                    }
+                    
+                    if (touchDirectionRef.current === 'vertical') {
+                        if (e.cancelable) e.preventDefault(); // prevent native browser scroll
+                        const currentY = touch.clientY;
+                        const currentTime = performance.now();
+                        const dY = currentY - lastTouchYRef.current;
+                        const timeDelta = currentTime - lastTouchTimeRef.current;
+
+                        // 85px = 1 item height offset unit
+                        const deltaOffset = -dY / 85;
+                        const newOffset = scrollOffsetRef.current + deltaOffset;
+                        updateScrollOffset(newOffset);
+
+                        if (timeDelta > 0) {
+                            velocityRef.current = deltaOffset / timeDelta * 16.67;
+                        }
+
+                        lastTouchYRef.current = currentY;
+                        lastTouchTimeRef.current = currentTime;
+                        handleSidebarInteraction();
+                    } else if (touchDirectionRef.current === 'horizontal') {
+                        if (e.cancelable) e.preventDefault();
+                        updatePosition(touch.clientX);
+                    }
+                };
+
+                const handleTouchEnd = () => {
+                    if (touchDirectionRef.current === 'horizontal') {
+                        setIsDragging(false);
+                    } else if (touchDirectionRef.current === 'vertical') {
+                        isDraggingSidebarRef.current = false;
+                        if (Math.abs(velocityRef.current) < 0.05) {
+                            const len = locations.length;
+                            targetIndexRef.current = (Math.round(scrollOffsetRef.current) % len + len) % len;
+                        }
+                        resetInactivityTimer();
+                    }
+                    touchDirectionRef.current = null;
+                };
+
+                container.addEventListener('wheel', onWheelEvent, { passive: false });
+                container.addEventListener('touchstart', handleTouchStart, { passive: true });
+                container.addEventListener('touchmove', handleTouchMove, { passive: false });
+                container.addEventListener('touchend', handleTouchEnd, { passive: true });
+
+                return () => {
+                    container.removeEventListener('wheel', onWheelEvent);
+                    container.removeEventListener('touchstart', handleTouchStart);
+                    container.removeEventListener('touchmove', handleTouchMove);
+                    container.removeEventListener('touchend', handleTouchEnd);
+                    clearTimeout(wheelTimeout);
+                };
             }, []);
-
-            // Touch swiping handlers for iPad / touch screen devices
-            const handleTouchStartSidebar = (e) => {
-                if (isCollapsed) return;
-                e.stopPropagation();
-                isDraggingSidebarRef.current = true;
-                lastTouchYRef.current = e.touches[0].clientY;
-                lastTouchTimeRef.current = performance.now();
-                velocityRef.current = 0;
-                targetIndexRef.current = null;
-                handleSidebarInteraction();
-            };
-
-            const handleTouchMoveSidebar = (e) => {
-                if (!isDraggingSidebarRef.current) return;
-                e.stopPropagation();
-                const currentY = e.touches[0].clientY;
-                const currentTime = performance.now();
-                const deltaY = currentY - lastTouchYRef.current;
-                const timeDelta = currentTime - lastTouchTimeRef.current;
-
-                // 85px = 1 item height offset unit
-                const deltaOffset = -deltaY / 85;
-                const newOffset = scrollOffsetRef.current + deltaOffset;
-                updateScrollOffset(newOffset);
-
-                if (timeDelta > 0) {
-                    velocityRef.current = deltaOffset / timeDelta * 16.67;
-                }
-
-                lastTouchYRef.current = currentY;
-                lastTouchTimeRef.current = currentTime;
-                handleSidebarInteraction();
-            };
-
-            const handleTouchEndSidebar = (e) => {
-                if (!isDraggingSidebarRef.current) return;
-                isDraggingSidebarRef.current = false;
-                
-                // If scroll velocity is low, snap to nearest card immediately
-                if (Math.abs(velocityRef.current) < 0.05) {
-                    targetIndexRef.current = Math.round(scrollOffsetRef.current) % locations.length;
-                }
-                
-                // Start collapse timer since user finished touching (mobile mode)
-                resetInactivityTimer();
-            };
 
             const handleCardInteraction = (locIdx) => {
                 targetIndexRef.current = locIdx;
+                velocityRef.current = 0; // stop any ongoing momentum scroll
                 handleSidebarInteraction();
             };
 
@@ -578,36 +632,38 @@
                     }
 
                     if (!isDraggingSidebarRef.current) {
-                        // Apply friction / inertia decay
-                        if (Math.abs(velocityRef.current) > 0.001) {
-                            let nextOffset = scrollOffsetRef.current + velocityRef.current;
-                            velocityRef.current *= 0.93; // friction
-                            updateScrollOffset(nextOffset);
-                        } else {
-                            velocityRef.current = 0;
-                            
-                            // Once static and not snapped, set snap target to nearest index
-                            if (targetIndexRef.current === null) {
-                                targetIndexRef.current = Math.round(scrollOffsetRef.current) % locations.length;
-                            }
+                        // If we don't have a target index yet, check if velocity is low enough to start snapping
+                        if (targetIndexRef.current === null && Math.abs(velocityRef.current) < 0.05) {
+                            const len = locations.length;
+                            targetIndexRef.current = (Math.round(scrollOffsetRef.current) % len + len) % len;
                         }
 
-                        // Spring snapping interpolation (Ease-in-out scroll)
                         if (targetIndexRef.current !== null) {
+                            // Spring snapping physics (iOS Picker Wheel feel)
                             const current = scrollOffsetRef.current;
                             const target = targetIndexRef.current;
                             const diff = getCircularOffset(target, current, locations.length);
 
-                            if (Math.abs(diff) > 0.001) {
-                                // Linear interpolation step mimics easing curve
-                                const step = diff * 0.065;
-                                updateScrollOffset(current + step);
-                            } else {
+                            // Spring force pulling towards target index
+                            const springForce = diff * 0.035; 
+                            velocityRef.current += springForce;
+                            velocityRef.current *= 0.88; // damping/friction during snap phase
+                            
+                            let nextOffset = current + velocityRef.current;
+                            updateScrollOffset(nextOffset);
+
+                            if (Math.abs(diff) < 0.002 && Math.abs(velocityRef.current) < 0.002) {
                                 updateScrollOffset(target);
+                                velocityRef.current = 0;
                                 if (target !== activeLocIndexRef.current) {
                                     triggerActiveLocationUpdate(target);
                                 }
                             }
+                        } else {
+                            // Pure inertia decay
+                            let nextOffset = scrollOffsetRef.current + velocityRef.current;
+                            velocityRef.current *= 0.95; // smooth friction decay
+                            updateScrollOffset(nextOffset);
                         }
                     }
 
@@ -777,25 +833,6 @@
                 setIsDragging(false);
             };
 
-            // Touch Event Handlers for mobile support
-            const handleTouchStart = (e) => {
-                setIsDragging(true);
-                if (e.touches.length > 0) {
-                    updatePosition(e.touches[0].clientX);
-                }
-            };
-
-            const handleTouchMove = (e) => {
-                if (!isDragging) return;
-                if (e.touches.length > 0) {
-                    updatePosition(e.touches[0].clientX);
-                }
-            };
-
-            const handleTouchEnd = () => {
-                setIsDragging(false);
-            };
-
             const posRatio = sliderPos / 100;
             const isPageLoading = !beforeLoaded || !afterLoaded;
             const activeLoc = locations[activeLocIndex];
@@ -808,9 +845,6 @@
                     onMouseMove={handleMouseMove}
                     onMouseUp={handleMouseUpOrLeave}
                     onMouseLeave={handleMouseUpOrLeave}
-                    onTouchStart={handleTouchStart}
-                    onTouchMove={handleTouchMove}
-                    onTouchEnd={handleTouchEnd}
                     style={{
                         '--slider-pos': `${sliderPos}%`,
                         '--slider-pos-ratio': posRatio
@@ -824,9 +858,6 @@
                         onMouseMove={handleSidebarInteraction}
                         onMouseLeave={handleSidebarMouseLeave}
                         onMouseDown={(e) => e.stopPropagation()}
-                        onTouchStart={handleTouchStartSidebar}
-                        onTouchMove={handleTouchMoveSidebar}
-                        onTouchEnd={handleTouchEndSidebar}
                         style={{
                             pointerEvents: isCollapsed ? 'none' : 'auto'
                         }}
@@ -896,11 +927,6 @@
                                     key={loc.id}
                                     className={cardClass}
                                     style={cardStyle}
-                                    onMouseEnter={() => {
-                                        if (isInteractive) {
-                                            handleCardInteraction(locIdx);
-                                        }
-                                    }}
                                     onClick={() => {
                                         if (isInteractive) {
                                             handleCardInteraction(locIdx);
