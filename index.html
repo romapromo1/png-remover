@@ -58,7 +58,8 @@
         .comparison-container {
             position: relative;
             width: 100vw;
-            height: 100vh;
+            height: 56.25vw; /* Lock 16:9 aspect ratio */
+            max-height: 100vh;
             max-width: 177.78vh; /* Lock 16:9 to fully fit screen height on ultra-wide */
             overflow: hidden;
             cursor: ew-resize;
@@ -131,6 +132,27 @@
             justify-content: center;
             align-items: center;
             overflow: visible;
+        }
+
+        /* Scale down sidebar on portrait/vertical viewports to fit the container height */
+        @media (max-aspect-ratio: 1/1) {
+            .sidebar-carousel-container {
+                transform: translateY(-50%) scale(0.5);
+                transform-origin: left center;
+                left: 15px;
+            }
+        }
+        
+        @media (max-aspect-ratio: 1/1) and (min-width: 600px) {
+            .sidebar-carousel-container {
+                transform: translateY(-50%) scale(0.75);
+            }
+        }
+
+        @media (max-aspect-ratio: 1/1) and (min-width: 768px) {
+            .sidebar-carousel-container {
+                transform: translateY(-50%) scale(0.9);
+            }
         }
 
         /* The glass tube background behind the cards (only visible when expanded) */
