@@ -1,3 +1,5 @@
 # Ignore raw HEIC image files since the web app only uses JPG and PNG
 *.HEIC
 *.heic
+
+.vercel
