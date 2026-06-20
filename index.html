@@ -49,16 +49,21 @@
         #root {
             width: 100%;
             height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
         }
 
-        /* Fullscreen Container */
+        /* Centered Main Viewport Container */
         .comparison-container {
             position: relative;
             width: 100vw;
             height: 100vh;
+            max-width: 177.78vh; /* Lock 16:9 to fully fit screen height on ultra-wide */
             overflow: hidden;
             cursor: ew-resize;
             background-color: #0c0c0b;
+            box-shadow: 0 0 100px rgba(0, 0, 0, 0.9);
         }
 
         .comparison-container.dragging {
@@ -76,8 +81,8 @@
         }
 
         .image-wrapper img {
-            width: 100vw;
-            height: 100vh;
+            width: 100%;
+            height: 100%;
             object-fit: cover;
             object-position: center;
             pointer-events: none;
@@ -89,20 +94,10 @@
             opacity: 1;
         }
 
-        /* The "Before" (Было) image is on top and clipped diagonally or masked by SVG */
+        /* The "Before" (Было) image is on top and masked by SVG */
         .image-before {
             z-index: 2;
-            will-change: clip-path, mask, -webkit-mask;
-        }
-
-        .image-before.mode-curl {
-            mask: none;
-            -webkit-mask: none;
-        }
-
-        .image-before.mode-lightning {
-            clip-path: none;
-            -webkit-clip-path: none;
+            will-change: mask, -webkit-mask;
             mask: url(#lightning-mask);
             -webkit-mask: url(#lightning-mask);
         }
@@ -112,81 +107,40 @@
             z-index: 1;
         }
 
-        /* Top Header Overlay */
+        /* Center Header Instruction Overlay */
         .header-overlay {
             position: absolute;
             top: 0;
             left: 0;
             width: 100%;
-            padding: 40px 60px;
+            padding: 40px;
             z-index: 10;
             display: flex;
-            justify-content: space-between;
+            justify-content: center;
             align-items: center;
             background: linear-gradient(to bottom, rgba(0, 0, 0, 0.8) 0%, rgba(0,0,0,0) 100%);
             pointer-events: none;
         }
 
-        .label-title {
+        .label-instruction {
             font-family: 'Cinzel', serif;
-            font-size: 3rem;
+            font-size: 1.6rem;
             font-weight: 700;
-            letter-spacing: 0.3em;
+            letter-spacing: 0.25em;
             text-transform: uppercase;
-            text-shadow: 0 4px 12px rgba(0, 0, 0, 0.8);
-            transition: opacity 0.3s ease, transform 0.3s ease;
-        }
-
-        /* Left label "БЫЛО" */
-        .label-before {
+            text-shadow: 0 4px 15px rgba(0, 0, 0, 0.9);
             color: var(--accent-gold);
             background: linear-gradient(45deg, #f3e5ab, #d4af37);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
-            opacity: calc(var(--slider-pos-ratio) * 1.5 - 0.2);
-            transform: translateX(calc((1 - var(--slider-pos-ratio)) * -30px));
+            text-align: center;
+            filter: drop-shadow(0 0 10px rgba(212, 175, 55, 0.4));
+            animation: pulse-glow 3s ease-in-out infinite;
         }
 
-        /* Right label "СТАЛО" */
-        .label-after {
-            color: var(--accent-silver);
-            background: linear-gradient(45deg, #ffffff, #a6a6a6);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            opacity: calc((1 - var(--slider-pos-ratio)) * 1.5 - 0.2);
-            transform: translateX(calc(var(--slider-pos-ratio) * 30px));
-        }
-
-        .glow-gold {
-            filter: drop-shadow(0 0 8px rgba(212, 175, 55, 0.3));
-        }
-
-        .glow-silver {
-            filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.3));
-        }
-
-        /* 3D Page Curl Crease Overlay */
-        .page-fold {
-            position: absolute;
-            top: 50%;
-            height: 200vh;
-            width: 140px;
-            z-index: 5;
-            pointer-events: none;
-            transform-origin: center;
-            will-change: left, transform;
-            background: linear-gradient(to right, 
-                rgba(0, 0, 0, 0) 0%, 
-                rgba(0, 0, 0, 0.15) 20%, 
-                rgba(0, 0, 0, 0.45) 42%, 
-                rgba(255, 255, 255, 0.6) 47%, 
-                rgba(245, 245, 240, 0.95) 49%, 
-                rgba(0, 0, 0, 0.7) 51%, 
-                rgba(0, 0, 0, 0.4) 57%, 
-                rgba(0, 0, 0, 0.15) 75%, 
-                rgba(0, 0, 0, 0) 100%
-            );
-            filter: drop-shadow(5px 0 15px rgba(0, 0, 0, 0.5));
+        @keyframes pulse-glow {
+            0%, 100% { filter: drop-shadow(0 0 8px rgba(212, 175, 55, 0.3)); opacity: 0.85; }
+            50% { filter: drop-shadow(0 0 18px rgba(212, 175, 55, 0.75)); opacity: 1; }
         }
 
         /* Fullscreen Canvas for Lightning Rendering */
@@ -200,37 +154,24 @@
             pointer-events: none;
         }
 
-        /* Sidebar Container */
+        /* 3D Liquid Glass Sidebar (Floating, narrow, vertical) */
         .sidebar {
             position: absolute;
-            top: 130px;
+            top: 120px;
             bottom: 40px;
-            left: 40px;
-            width: 320px;
-            background: rgba(18, 18, 16, 0.75);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            border-radius: 20px;
-            padding: 24px;
+            left: 30px;
+            width: 130px;
+            background: rgba(18, 18, 16, 0.45);
+            backdrop-filter: blur(25px) saturate(180%);
+            -webkit-backdrop-filter: blur(25px) saturate(180%);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 24px;
+            padding: 20px 12px;
             z-index: 100;
             display: flex;
             flex-direction: column;
-            box-shadow: 0 30px 60px rgba(0, 0, 0, 0.6);
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5), inset 0 0 15px rgba(255, 255, 255, 0.05);
             transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-        }
-
-        .sidebar-header {
-            font-family: 'Cinzel', serif;
-            font-size: 1.3rem;
-            font-weight: 700;
-            letter-spacing: 0.15em;
-            color: var(--accent-gold);
-            text-shadow: 0 0 10px rgba(212, 175, 55, 0.3);
-            margin-bottom: 20px;
-            padding-bottom: 12px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-            text-align: center;
         }
 
         .sidebar-list {
@@ -238,122 +179,63 @@
             overflow-y: auto;
             display: flex;
             flex-direction: column;
-            gap: 12px;
-            padding-right: 4px;
+            gap: 16px;
+            padding: 4px;
         }
 
-        /* Custom scrollbar for sidebar */
+        /* Hide scrollbar for sidebar */
         .sidebar-list::-webkit-scrollbar {
-            width: 6px;
-        }
-        .sidebar-list::-webkit-scrollbar-track {
-            background: rgba(255, 255, 255, 0.02);
-            border-radius: 10px;
-        }
-        .sidebar-list::-webkit-scrollbar-thumb {
-            background: rgba(255, 255, 255, 0.15);
-            border-radius: 10px;
-        }
-        .sidebar-list::-webkit-scrollbar-thumb:hover {
-            background: var(--accent-gold);
+            width: 0px;
+            background: transparent;
         }
 
-        /* Sidebar item styling */
+        /* 3D Liquid Glass item styling */
         .sidebar-item {
-            display: flex;
-            align-items: center;
-            gap: 14px;
-            padding: 10px;
+            position: relative;
+            width: 90px;
+            height: 68px; /* 4:3 aspect ratio */
+            margin: 0 auto;
             background: rgba(255, 255, 255, 0.02);
-            border: 1px solid rgba(255, 255, 255, 0.05);
-            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 14px;
             cursor: pointer;
-            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
-        }
-
-        .sidebar-item:hover {
-            background: rgba(212, 175, 55, 0.08);
-            border-color: rgba(212, 175, 55, 0.25);
-            transform: translateX(6px);
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
-        }
-
-        .sidebar-item.active {
-            background: rgba(212, 175, 55, 0.15);
-            border-color: var(--accent-gold);
-            box-shadow: 0 0 15px rgba(212, 175, 55, 0.25);
-            transform: translateX(8px);
+            perspective: 800px;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4), inset 0 0 10px rgba(255, 255, 255, 0.05);
+            transition: all 0.5s cubic-bezier(0.25, 0.8, 0.25, 1);
+            overflow: visible;
         }
 
         .sidebar-item-thumb {
-            width: 70px;
-            height: 50px;
-            border-radius: 8px;
+            width: 100%;
+            height: 100%;
+            border-radius: 12px;
             object-fit: cover;
-            border: 1px solid rgba(255, 255, 255, 0.15);
-            transition: border-color 0.3s ease;
+            transition: all 0.5s cubic-bezier(0.25, 0.8, 0.25, 1);
+        }
+
+        /* 3D Hover/Active liquid glass effects */
+        .sidebar-item:hover {
+            transform: translateY(-4px) scale(1.08) rotateX(12deg) rotateY(-8deg);
+            border-color: rgba(212, 175, 55, 0.5);
+            background: rgba(212, 175, 55, 0.05);
+            box-shadow: 0 12px 25px rgba(212, 175, 55, 0.2), 
+                        inset 0 0 12px rgba(255, 255, 255, 0.15);
+        }
+
+        .sidebar-item.active {
+            transform: translateY(-6px) scale(1.12) rotateX(10deg) rotateY(-6deg);
+            border-color: var(--accent-gold);
+            background: rgba(212, 175, 55, 0.15);
+            box-shadow: 0 15px 35px rgba(212, 175, 55, 0.4), 
+                        inset 0 0 18px rgba(212, 175, 55, 0.2);
+        }
+
+        .sidebar-item:hover .sidebar-item-thumb {
+            filter: brightness(1.1) contrast(1.05);
         }
 
         .sidebar-item.active .sidebar-item-thumb {
-            border-color: var(--accent-gold);
-        }
-
-        .sidebar-item-name {
-            font-size: 0.85rem;
-            font-weight: 600;
-            color: #e0e0e0;
-            letter-spacing: 0.05em;
-            transition: color 0.3s ease;
-            text-align: left;
-            line-height: 1.3;
-        }
-
-        .sidebar-item.active .sidebar-item-name {
-            color: #ffffff;
-            text-shadow: 0 0 5px rgba(255, 255, 255, 0.2);
-        }
-
-        /* Mode Toggle */
-        .mode-toggle {
-            position: absolute;
-            top: 40px;
-            left: 50%;
-            transform: translateX(-50%);
-            display: flex;
-            background: rgba(18, 18, 16, 0.8);
-            backdrop-filter: blur(16px);
-            -webkit-backdrop-filter: blur(16px);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            border-radius: 30px;
-            padding: 4px;
-            z-index: 100;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
-        }
-
-        .mode-btn {
-            font-family: 'Montserrat', sans-serif;
-            font-size: 0.75rem;
-            font-weight: 600;
-            letter-spacing: 0.08em;
-            color: #a0a0a0;
-            background: transparent;
-            border: none;
-            padding: 10px 22px;
-            border-radius: 25px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            text-transform: uppercase;
-        }
-
-        .mode-btn:hover {
-            color: #ffffff;
-        }
-
-        .mode-btn.active {
-            color: #000000;
-            background: linear-gradient(45deg, #f3e5ab, #d4af37);
-            box-shadow: 0 4px 15px rgba(212, 175, 55, 0.4);
-            font-weight: 700;
+            filter: brightness(1.15) contrast(1.1);
         }
 
         /* Spinner Overlay */
@@ -417,49 +299,41 @@
         const locations = [
             {
                 id: "lobby_1",
-                name: "Вестибюль 1",
                 before: "pic/Вестибюль_1_ДО.jpg",
                 after: "pic/Вестибюль_1.jpg"
             },
             {
                 id: "lobby_3",
-                name: "Вестибюль 3",
                 before: "pic/Вестибюль_3_ДО.jpg",
                 after: "pic/Вестибюль_3.jpg"
             },
             {
                 id: "concert_1",
-                name: "Концертный зал 1",
                 before: "pic/Концертный_зал_1_ДО.jpg",
                 after: "pic/Концертный_зал_1.jpg"
             },
             {
                 id: "concert_2",
-                name: "Концертный зал 2",
                 before: "pic/Концертный_зал_2_до.jpg",
                 after: "pic/Концертный_зал_2.jpg"
             },
             {
                 id: "concert_3",
-                name: "Концертный зал 3",
                 before: "pic/Концертный_зал_3_ДО.jpg",
                 after: "pic/Концертный_зал_3.jpg"
             },
             {
                 id: "lounge_2",
-                name: "Лаундж 2",
                 before: "pic/Лаундж_2_ДО.jpg",
                 after: "pic/Лаундж_2.jpg"
             },
             {
                 id: "lounge_3",
-                name: "Лаундж 3",
                 before: "pic/Лаундж_3 ДО.jpg",
                 after: "pic/Лаундж_3.jpg"
             },
             {
                 id: "private_2",
-                name: "Приватные комнаты 2",
                 before: "pic/Приватные_команты_2_до.jpg",
                 after: "pic/Приватные_команты_2.jpg"
             }
@@ -469,7 +343,6 @@
             const [activeLoc, setActiveLoc] = useState(locations[0]);
             const [sliderPos, setSliderPos] = useState(50); // Set default to 50% split
             const [isDragging, setIsDragging] = useState(false);
-            const [transitionType, setTransitionType] = useState('curl'); // 'curl' or 'lightning'
             
             const [beforeLoaded, setBeforeLoaded] = useState(false);
             const [afterLoaded, setAfterLoaded] = useState(false);
@@ -488,25 +361,25 @@
                 sliderPosRef.current = sliderPos;
             }, [sliderPos]);
 
-            // Handle resize
+            // Handle resize dynamically mapping to container bounds
             useEffect(() => {
                 const handleResize = () => {
-                    setWinSize({ w: window.innerWidth, h: window.innerHeight });
+                    const container = containerRef.current;
                     const canvas = canvasRef.current;
-                    if (canvas && transitionType === 'lightning') {
-                        canvas.width = window.innerWidth;
-                        canvas.height = window.innerHeight;
+                    if (container && canvas) {
+                        const rect = container.getBoundingClientRect();
+                        canvas.width = rect.width;
+                        canvas.height = rect.height;
+                        setWinSize({ w: rect.width, h: rect.height });
                     }
                 };
                 window.addEventListener('resize', handleResize);
                 handleResize(); // Initial call
                 return () => window.removeEventListener('resize', handleResize);
-            }, [transitionType]);
+            }, []);
 
             // Lightning Animation and Mask update Loop
             useEffect(() => {
-                if (transitionType !== 'lightning') return;
-                
                 let animationFrameId;
                 
                 const renderLightning = () => {
@@ -582,7 +455,7 @@
                     // Draw the glowing lightning bolt
                     const flicker = 0.85 + 0.15 * Math.sin(time * 3.5) * Math.cos(time * 1.2);
 
-                    // Outer glowing warm-orange path
+                    // Outer glowing path
                     ctx.beginPath();
                     ctx.moveTo(points[0].x, points[0].y);
                     for (let i = 1; i < points.length; i++) {
@@ -626,7 +499,7 @@
 
                 animationFrameId = requestAnimationFrame(renderLightning);
                 return () => cancelAnimationFrame(animationFrameId);
-            }, [transitionType]);
+            }, []);
 
             // Handle slider position updates
             const updatePosition = (clientX) => {
@@ -681,27 +554,7 @@
                 setActiveLoc(loc);
             };
 
-            // Calculate diagonal crease coordinates
-            const targetX = (sliderPos / 100) * winSize.w;
-            const tiltX = 110; 
-            const xTop = targetX + tiltX;
-            const xBottom = targetX - tiltX;
-
-            const angleRad = Math.atan2(tiltX * 2, winSize.h);
-            const angleDeg = angleRad * (180 / Math.PI);
-
-            // Generate CSS clip-path polygon points for curl
-            const clipPathString = transitionType === 'curl' 
-                ? `polygon(0% 0%, ${xTop}px 0%, ${xBottom}px 100%, 0% 100%)`
-                : 'none';
-
             const posRatio = sliderPos / 100;
-            const showFold = transitionType === 'curl' && sliderPos > 0.5 && sliderPos < 99.5;
-
-            const imageStyle = transitionType === 'curl' 
-                ? { clipPath: clipPathString, WebkitClipPath: clipPathString }
-                : {};
-
             const isPageLoading = !beforeLoaded || !afterLoaded;
 
             return (
@@ -726,7 +579,6 @@
                         onMouseDown={(e) => e.stopPropagation()}
                         onTouchStart={(e) => e.stopPropagation()}
                     >
-                        <div className="sidebar-header">ЛОКАЦИИ</div>
                         <div className="sidebar-list">
                             {locations.map((loc) => (
                                 <div 
@@ -736,33 +588,12 @@
                                 >
                                     <img 
                                         src={loc.after} 
-                                        alt={loc.name} 
+                                        alt={loc.id} 
                                         className="sidebar-item-thumb" 
                                     />
-                                    <div className="sidebar-item-name">{loc.name}</div>
                                 </div>
                             ))}
                         </div>
-                    </div>
-
-                    {/* Transition Mode Toggle */}
-                    <div 
-                        className="mode-toggle"
-                        onMouseDown={(e) => e.stopPropagation()}
-                        onTouchStart={(e) => e.stopPropagation()}
-                    >
-                        <button 
-                            className={`mode-btn ${transitionType === 'curl' ? 'active' : ''}`}
-                            onClick={() => setTransitionType('curl')}
-                        >
-                            Листание
-                        </button>
-                        <button 
-                            className={`mode-btn ${transitionType === 'lightning' ? 'active' : ''}`}
-                            onClick={() => setTransitionType('lightning')}
-                        >
-                            Молния
-                        </button>
                     </div>
 
                     {/* Loader Spinner Overlay */}
@@ -770,36 +601,19 @@
                         <div className="spinner"></div>
                     </div>
 
-                    {/* Header with "БЫЛО" / "СТАЛО" */}
+                    {/* Instruction Header Label */}
                     <div className="header-overlay">
-                        <div className="label-title label-before glow-gold">БЫЛО</div>
-                        <div className="label-title label-after glow-silver">СТАЛО</div>
+                        <div className="label-instruction">ПРОВЕДИ ПАЛЬЦЕМ СПРАВА НАЛЕВО</div>
                     </div>
 
-                    {/* 3D Page Fold crease line and shadow (only for curl mode) */}
-                    {showFold && (
-                        <div 
-                            className="page-fold"
-                            style={{
-                                left: `${targetX}px`,
-                                transform: `translate(-50%, -50%) rotate(${angleDeg}deg)`
-                            }}
-                        />
-                    )}
-
-                    {/* Fullscreen Canvas for Rendering the Lightning Bolt (only active in lightning mode) */}
-                    {transitionType === 'lightning' && (
-                        <canvas ref={canvasRef} className="lightning-canvas" />
-                    )}
+                    {/* Canvas for Rendering the Lightning Bolt */}
+                    <canvas ref={canvasRef} className="lightning-canvas" />
 
                     {/* Before Image (Top Layer) */}
-                    <div 
-                        className={`image-wrapper image-before ${transitionType === 'curl' ? 'mode-curl' : 'mode-lightning'}`}
-                        style={imageStyle}
-                    >
+                    <div className="image-wrapper image-before">
                         <img 
                             src={activeLoc.before} 
-                            alt={`${activeLoc.name} (До)`}
+                            alt="Было"
                             className={beforeLoaded ? 'loaded' : ''}
                             onLoad={() => setBeforeLoaded(true)}
                         />
@@ -809,7 +623,7 @@
                     <div className="image-wrapper image-after">
                         <img 
                             src={activeLoc.after} 
-                            alt={`${activeLoc.name} (После)`}
+                            alt="Стало"
                             className={afterLoaded ? 'loaded' : ''}
                             onLoad={() => setAfterLoaded(true)}
                         />
@@ -823,4 +637,5 @@
     </script>
 </body>
 </html>
+
 
