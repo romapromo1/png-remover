@@ -574,27 +574,8 @@
                     const source = ctx.createBufferSource();
                     source.buffer = buffer;
                     
-                    // Lowpass filter: cutoff set to 1000Hz for a warmer, muffled feel
-                    const filter = ctx.createBiquadFilter();
-                    filter.type = 'lowpass';
-                    filter.frequency.value = 1000;
-                    
-                    // Dynamics compressor with higher compression ratio and lower threshold
-                    const compressor = ctx.createDynamicsCompressor();
-                    compressor.threshold.setValueAtTime(-40, ctx.currentTime);
-                    compressor.knee.setValueAtTime(8, ctx.currentTime);
-                    compressor.ratio.setValueAtTime(12, ctx.currentTime);
-                    compressor.attack.setValueAtTime(0.003, ctx.currentTime);
-                    compressor.release.setValueAtTime(0.05, ctx.currentTime);
-                    
-                    // Gain: set to 0.3
-                    const gainNode = ctx.createGain();
-                    gainNode.gain.value = 0.3;
-                    
-                    source.connect(filter);
-                    filter.connect(compressor);
-                    compressor.connect(gainNode);
-                    gainNode.connect(ctx.destination);
+                    // Play the raw audio file directly without any filters, compressors, or volume corrections
+                    source.connect(ctx.destination);
                     
                     source.start(0);
                 }
