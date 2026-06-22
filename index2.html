@@ -581,17 +581,13 @@
                         const polyPoints = `0,0 ` + points.map(p => `${Math.round(p.x)},${Math.round(p.y)}`).join(' ') + ` 0,${height}`;
                         maskPoly.setAttribute('points', polyPoints);
 
-                        // Force Safari to repaint the mask by dirtying the transform and mask styles
+                        // Force Safari to repaint the mask by dirtying the transform style
                         const beforeImg = document.querySelector('.image-before');
                         if (beforeImg) {
                             // Sub-pixel scale oscillation forces Safari to repaint the layer on every frame
                             const scale = 1 + (Math.sin(time * 100) * 0.0001);
                             beforeImg.style.transform = `scale(${scale}) translateZ(0)`;
                             beforeImg.style.webkitTransform = `scale(${scale}) translateZ(0)`;
-                            
-                            // Re-apply webkitMask/mask to invalidate cached mask bounds
-                            beforeImg.style.webkitMask = 'url(#lightning-mask)';
-                            beforeImg.style.mask = 'url(#lightning-mask)';
                         }
                     }
 
