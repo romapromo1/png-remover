@@ -99,9 +99,11 @@
         /* The "Before" (Было) image is on top and masked by SVG */
         .image-before {
             z-index: 2;
-            will-change: mask, -webkit-mask;
+            will-change: mask, -webkit-mask, transform;
             mask: url(#lightning-mask);
             -webkit-mask: url(#lightning-mask);
+            transform: translateZ(0);
+            -webkit-transform: translateZ(0);
         }
 
         /* The "After" (Стало) image is in the background */
@@ -347,8 +349,8 @@
     </style>
 </head>
 <body>
-    <!-- Inline SVG definition for the feathered mask -->
-    <svg style="position: absolute; width: 0; height: 0; pointer-events: none;">
+    <!-- Inline SVG definition for the feathered mask (width/height 100% and opacity 0 is crucial for Safari mask repainting) -->
+    <svg style="position: absolute; width: 100%; height: 100%; top: 0; left: 0; pointer-events: none; opacity: 0; z-index: -1;">
         <defs>
             <!-- Feather blur filter applied to the mask boundary -->
             <filter id="feather-blur">
@@ -805,6 +807,19 @@
                     if (maskPoly) {
                         const polyPoints = `0,0 ` + points.map(p => `${Math.round(p.x)},${Math.round(p.y)}`).join(' ') + ` 0,${height}`;
                         maskPoly.setAttribute('points', polyPoints);
+
+                        // Force Safari to repaint the mask by dirtying the transform and mask styles
+                        const beforeImg = document.querySelector('.image-before');
+                        if (beforeImg) {
+                            // Sub-pixel scale oscillation forces Safari to repaint the layer on every frame
+                            const scale = 1 + (Math.sin(time * 100) * 0.0001);
+                            beforeImg.style.transform = `scale(${scale}) translateZ(0)`;
+                            beforeImg.style.webkitTransform = `scale(${scale}) translateZ(0)`;
+                            
+                            // Re-apply webkitMask/mask to invalidate cached mask bounds
+                            beforeImg.style.webkitMask = 'url(#lightning-mask)';
+                            beforeImg.style.mask = 'url(#lightning-mask)';
+                        }
                     }
 
                     // Draw the glowing lightning bolt
