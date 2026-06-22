@@ -658,38 +658,30 @@
                 setSliderPos(percentage);
             };
 
-            // Mouse Event Handlers
-            const handleMouseDown = (e) => {
-                if (e.button !== 0) return; // Only allow left-click drag
+            // Pointer Event Handlers (Unifies Mouse and Touch for all devices, including iPad)
+            const handlePointerDown = (e) => {
+                if (e.button !== 0 && e.pointerType === 'mouse') return;
+                const container = containerRef.current;
+                if (!container) return;
+                try {
+                    container.setPointerCapture(e.pointerId);
+                } catch (err) {}
                 setIsDragging(true);
                 updatePosition(e.clientX);
             };
 
-            const handleMouseMove = (e) => {
+            const handlePointerMove = (e) => {
                 if (!isDragging) return;
                 updatePosition(e.clientX);
             };
 
-            const handleMouseUpOrLeave = () => {
-                setIsDragging(false);
-            };
-
-            // Touch Event Handlers for mobile support
-            const handleTouchStart = (e) => {
-                setIsDragging(true);
-                if (e.touches.length > 0) {
-                    updatePosition(e.touches[0].clientX);
+            const handlePointerUp = (e) => {
+                const container = containerRef.current;
+                if (container) {
+                    try {
+                        container.releasePointerCapture(e.pointerId);
+                    } catch (err) {}
                 }
-            };
-
-            const handleTouchMove = (e) => {
-                if (!isDragging) return;
-                if (e.touches.length > 0) {
-                    updatePosition(e.touches[0].clientX);
-                }
-            };
-
-            const handleTouchEnd = () => {
                 setIsDragging(false);
             };
 
@@ -726,13 +718,10 @@
                 <div 
                     ref={containerRef}
                     className={`comparison-container ${isDragging ? 'dragging' : ''}`}
-                    onMouseDown={handleMouseDown}
-                    onMouseMove={handleMouseMove}
-                    onMouseUp={handleMouseUpOrLeave}
-                    onMouseLeave={handleMouseUpOrLeave}
-                    onTouchStart={handleTouchStart}
-                    onTouchMove={handleTouchMove}
-                    onTouchEnd={handleTouchEnd}
+                    onPointerDown={handlePointerDown}
+                    onPointerMove={handlePointerMove}
+                    onPointerUp={handlePointerUp}
+                    onPointerCancel={handlePointerUp}
                     style={{
                         '--slider-pos': `${sliderPos}%`,
                         '--slider-pos-ratio': posRatio
@@ -742,7 +731,7 @@
                     <div 
                         className="sidebar"
                         onMouseDown={(e) => e.stopPropagation()}
-                        onTouchStart={(e) => e.stopPropagation()}
+                        onPointerDown={(e) => e.stopPropagation()}
                     >
                         <div className="sidebar-header">ЛОКАЦИИ</div>
                         <div className="sidebar-list">

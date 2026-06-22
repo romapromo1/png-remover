@@ -622,7 +622,7 @@
                 setAfterLoaded(false);
             };
 
-            // Global Wheel and Touch gesture handlers on container
+            // Global Wheel gesture handler on container
             useEffect(() => {
                 const container = containerRef.current;
                 if (!container) return;
@@ -655,92 +655,10 @@
                     }, 150);
                 };
 
-                const handleTouchStart = (e) => {
-                    if (e.touches.length === 0) return;
-                    const touch = e.touches[0];
-                    touchStartRef.current = { x: touch.clientX, y: touch.clientY };
-                    touchDirectionRef.current = null;
-                    isDraggingSidebarRef.current = false;
-                    lastTouchYRef.current = touch.clientY;
-                    lastTouchTimeRef.current = performance.now();
-                    velocityRef.current = 0;
-                };
-
-                const handleTouchMove = (e) => {
-                    if (e.cancelable) e.preventDefault();
-                    if (e.touches.length === 0) return;
-                    const touch = e.touches[0];
-                    const deltaX = touch.clientX - touchStartRef.current.x;
-                    const deltaY = touch.clientY - touchStartRef.current.y;
-                    
-                    if (touchDirectionRef.current === null) {
-                        const distSq = deltaX * deltaX + deltaY * deltaY;
-                        if (distSq > 64) { // 8px threshold
-                            if (Math.abs(deltaX) > Math.abs(deltaY)) {
-                                touchDirectionRef.current = 'horizontal';
-                                setIsDragging(true);
-                                setIsCollapsed(true);
-                                if (timerRef.current) {
-                                    clearTimeout(timerRef.current);
-                                }
-                                updatePosition(touch.clientX);
-                            } else {
-                                touchDirectionRef.current = 'vertical';
-                                isDraggingSidebarRef.current = true;
-                                targetIndexRef.current = null;
-                                setIsCollapsed(false);
-                                handleSidebarInteraction();
-                            }
-                        }
-                    }
-                    
-                    if (touchDirectionRef.current === 'vertical') {
-                        const currentY = touch.clientY;
-                        const currentTime = performance.now();
-                        const dY = currentY - lastTouchYRef.current;
-                        const timeDelta = currentTime - lastTouchTimeRef.current;
-
-                        // 78px = 1 item height offset unit
-                        const deltaOffset = -dY / 78;
-                        const newOffset = scrollOffsetRef.current + deltaOffset;
-                        updateScrollOffset(newOffset);
-
-                        if (timeDelta > 0) {
-                            velocityRef.current = deltaOffset / timeDelta * 16.67;
-                        }
-
-                        lastTouchYRef.current = currentY;
-                        lastTouchTimeRef.current = currentTime;
-                        handleSidebarInteraction();
-                    } else if (touchDirectionRef.current === 'horizontal') {
-                        updatePosition(touch.clientX);
-                    }
-                };
-
-                const handleTouchEnd = () => {
-                    if (touchDirectionRef.current === 'horizontal') {
-                        setIsDragging(false);
-                    } else if (touchDirectionRef.current === 'vertical') {
-                        isDraggingSidebarRef.current = false;
-                        if (Math.abs(velocityRef.current) < 0.05) {
-                            const len = locations.length;
-                            targetIndexRef.current = (Math.round(scrollOffsetRef.current) % len + len) % len;
-                        }
-                        resetInactivityTimer();
-                    }
-                    touchDirectionRef.current = null;
-                };
-
                 container.addEventListener('wheel', onWheelEvent, { passive: false });
-                container.addEventListener('touchstart', handleTouchStart, { passive: false });
-                container.addEventListener('touchmove', handleTouchMove, { passive: false });
-                container.addEventListener('touchend', handleTouchEnd, { passive: false });
 
                 return () => {
                     container.removeEventListener('wheel', onWheelEvent);
-                    container.removeEventListener('touchstart', handleTouchStart);
-                    container.removeEventListener('touchmove', handleTouchMove);
-                    container.removeEventListener('touchend', handleTouchEnd);
                     clearTimeout(wheelTimeout);
                 };
             }, []);
@@ -967,20 +885,94 @@
                 setSliderPos(percentage);
             };
 
-            // Mouse Event Handlers
-            const handleMouseDown = (e) => {
-                if (e.button !== 0) return; // Only allow left-click drag
-                setIsDragging(true);
-                updatePosition(e.clientX);
+            // Pointer Event Handlers (Unifies Mouse and Touch for all devices, including iPad)
+            const handlePointerDown = (e) => {
+                if (e.button !== 0 && e.pointerType === 'mouse') return;
+                const container = containerRef.current;
+                if (!container) return;
+                
+                try {
+                    container.setPointerCapture(e.pointerId);
+                } catch (err) {}
+
+                touchStartRef.current = { x: e.clientX, y: e.clientY, time: performance.now() };
+                touchDirectionRef.current = null;
+                isDraggingSidebarRef.current = false;
+                lastTouchYRef.current = e.clientY;
+                lastTouchTimeRef.current = performance.now();
+                velocityRef.current = 0;
             };
 
-            const handleMouseMove = (e) => {
-                if (!isDragging) return;
-                updatePosition(e.clientX);
+            const handlePointerMove = (e) => {
+                if (!touchStartRef.current) return;
+                const deltaX = e.clientX - touchStartRef.current.x;
+                const deltaY = e.clientY - touchStartRef.current.y;
+                
+                if (touchDirectionRef.current === null) {
+                    const distSq = deltaX * deltaX + deltaY * deltaY;
+                    if (distSq > 64) { // 8px threshold
+                        if (Math.abs(deltaX) > Math.abs(deltaY)) {
+                            touchDirectionRef.current = 'horizontal';
+                            setIsDragging(true);
+                            setIsCollapsed(true);
+                            if (timerRef.current) {
+                                clearTimeout(timerRef.current);
+                            }
+                            updatePosition(e.clientX);
+                        } else {
+                            touchDirectionRef.current = 'vertical';
+                            isDraggingSidebarRef.current = true;
+                            targetIndexRef.current = null;
+                            setIsCollapsed(false);
+                            handleSidebarInteraction();
+                        }
+                    }
+                }
+                
+                if (touchDirectionRef.current === 'vertical') {
+                    const currentY = e.clientY;
+                    const currentTime = performance.now();
+                    const dY = currentY - lastTouchYRef.current;
+                    const timeDelta = currentTime - lastTouchTimeRef.current;
+
+                    // 78px = 1 item height offset unit
+                    const deltaOffset = -dY / 78;
+                    const newOffset = scrollOffsetRef.current + deltaOffset;
+                    updateScrollOffset(newOffset);
+
+                    if (timeDelta > 0) {
+                        velocityRef.current = deltaOffset / timeDelta * 16.67;
+                    }
+
+                    lastTouchYRef.current = currentY;
+                    lastTouchTimeRef.current = currentTime;
+                    handleSidebarInteraction();
+                } else if (touchDirectionRef.current === 'horizontal') {
+                    updatePosition(e.clientX);
+                }
             };
 
-            const handleMouseUpOrLeave = () => {
-                setIsDragging(false);
+            const handlePointerUp = (e) => {
+                if (!touchStartRef.current) return;
+                const container = containerRef.current;
+                if (container) {
+                    try {
+                        container.releasePointerCapture(e.pointerId);
+                    } catch (err) {}
+                }
+                
+                if (touchDirectionRef.current === 'horizontal') {
+                    setIsDragging(false);
+                } else if (touchDirectionRef.current === 'vertical') {
+                    isDraggingSidebarRef.current = false;
+                    if (Math.abs(velocityRef.current) < 0.05) {
+                        const len = locations.length;
+                        targetIndexRef.current = (Math.round(scrollOffsetRef.current) % len + len) % len;
+                    }
+                    resetInactivityTimer();
+                }
+                touchDirectionRef.current = null;
+                touchStartRef.current = null;
             };
 
             const posRatio = sliderPos / 100;
@@ -991,10 +983,10 @@
                 <div 
                     ref={containerRef}
                     className={`comparison-container ${isDragging ? 'dragging' : ''}`}
-                    onMouseDown={handleMouseDown}
-                    onMouseMove={handleMouseMove}
-                    onMouseUp={handleMouseUpOrLeave}
-                    onMouseLeave={handleMouseUpOrLeave}
+                    onPointerDown={handlePointerDown}
+                    onPointerMove={handlePointerMove}
+                    onPointerUp={handlePointerUp}
+                    onPointerCancel={handlePointerUp}
                     style={{
                         '--slider-pos': `${sliderPos}%`,
                         '--slider-pos-ratio': posRatio
@@ -1008,6 +1000,7 @@
                         onMouseMove={handleSidebarInteraction}
                         onMouseLeave={handleSidebarMouseLeave}
                         onMouseDown={(e) => e.stopPropagation()}
+                        onPointerDown={(e) => e.stopPropagation()}
                         style={{
                             pointerEvents: isCollapsed ? 'none' : 'auto'
                         }}
