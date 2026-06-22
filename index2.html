@@ -90,24 +90,10 @@
             opacity: 1;
         }
 
-        /* The "Before" (Было) image is on top and clipped diagonally or masked by SVG */
+        /* The "Before" (Было) image is on top and clipped dynamically */
         .image-before {
             z-index: 2;
-            will-change: clip-path, mask, -webkit-mask, transform;
-            transform: translateZ(0);
-            -webkit-transform: translateZ(0);
-        }
-
-        .image-before.mode-curl {
-            mask: none;
-            -webkit-mask: none;
-        }
-
-        .image-before.mode-lightning {
-            clip-path: none;
-            -webkit-clip-path: none;
-            mask: url(#lightning-mask);
-            -webkit-mask: url(#lightning-mask);
+            will-change: clip-path, -webkit-clip-path;
         }
 
         /* The "After" (Стало) image is in the background */
@@ -397,20 +383,7 @@
     </style>
 </head>
 <body>
-    <!-- Inline SVG definition for the feathered mask (width/height 100% and opacity 0 is crucial for Safari mask repainting) -->
-    <svg style="position: absolute; width: 100%; height: 100%; top: 0; left: 0; pointer-events: none; opacity: 0; z-index: -1;">
-        <defs>
-            <!-- Feather blur filter applied to the mask boundary -->
-            <filter id="feather-blur">
-                <feGaussianBlur stdDeviation="8" />
-            </filter>
-            <!-- The mask structure: everything black is hidden, everything white is shown -->
-            <mask id="lightning-mask" maskContentUnits="userSpaceOnUse">
-                <rect width="100%" height="100%" fill="black" />
-                <polygon id="mask-polygon" fill="white" filter="url(#feather-blur)" />
-            </mask>
-        </defs>
-    </svg>
+    <!-- No SVG mask needed since clip-path is used for comparison sliding -->
 
     <div id="root"></div>
 
@@ -479,6 +452,7 @@
 
             const containerRef = useRef(null);
             const canvasRef = useRef(null);
+            const beforeImgRef = useRef(null);
             
             // Mutable references for animation loop parameters
             const timeRef = useRef(0);
@@ -518,7 +492,7 @@
                     const ctx = canvas.getContext('2d');
                     const width = canvas.width;
                     const height = canvas.height;
-                    const maskPoly = document.getElementById('mask-polygon');
+                    const beforeImg = beforeImgRef.current || document.querySelector('.image-before');
                     
                     // Clear canvas
                     ctx.clearRect(0, 0, width, height);
@@ -542,15 +516,19 @@
 
                     // Boundary conditions for full screen reveals
                     if (currentSliderPercent >= 99.8) {
-                        if (maskPoly) {
-                            maskPoly.setAttribute('points', `0,0 ${width},0 ${width},${height} 0,${height}`);
+                        if (beforeImg) {
+                            const clipStr = `polygon(0px 0px, ${width}px 0px, ${width}px ${height}px, 0px ${height}px)`;
+                            beforeImg.style.clipPath = clipStr;
+                            beforeImg.style.webkitClipPath = clipStr;
                         }
                         animationFrameId = requestAnimationFrame(renderLightning);
                         return;
                     }
                     if (currentSliderPercent <= 0.2) {
-                        if (maskPoly) {
-                            maskPoly.setAttribute('points', `0,0 0,0 0,${height} 0,${height}`);
+                        if (beforeImg) {
+                            const clipStr = `polygon(0px 0px, 0px 0px, 0px ${height}px, 0px ${height}px)`;
+                            beforeImg.style.clipPath = clipStr;
+                            beforeImg.style.webkitClipPath = clipStr;
                         }
                         animationFrameId = requestAnimationFrame(renderLightning);
                         return;
@@ -576,19 +554,11 @@
                         points.push({ x: targetX + dx, y: y });
                     }
 
-                    // Update the SVG mask polygon points (feathered edge matches the lightning)
-                    if (maskPoly) {
-                        const polyPoints = `0,0 ` + points.map(p => `${Math.round(p.x)},${Math.round(p.y)}`).join(' ') + ` 0,${height}`;
-                        maskPoly.setAttribute('points', polyPoints);
-
-                        // Force Safari to repaint the mask by dirtying the transform style
-                        const beforeImg = document.querySelector('.image-before');
-                        if (beforeImg) {
-                            // Sub-pixel scale oscillation forces Safari to repaint the layer on every frame
-                            const scale = 1 + (Math.sin(time * 100) * 0.0001);
-                            beforeImg.style.transform = `scale(${scale}) translateZ(0)`;
-                            beforeImg.style.webkitTransform = `scale(${scale}) translateZ(0)`;
-                        }
+                    // Update the clip-path coordinates of the before image (100% compatible with Safari/Chrome)
+                    if (beforeImg) {
+                        const clipPoints = `polygon(0px 0px, ` + points.map(p => `${Math.round(p.x)}px ${Math.round(p.y)}px`).join(', ') + `, 0px ${height}px)`;
+                        beforeImg.style.clipPath = clipPoints;
+                        beforeImg.style.webkitClipPath = clipPoints;
                     }
 
                     // Draw the glowing lightning bolt
@@ -711,17 +681,19 @@
             const angleRad = Math.atan2(tiltX * 2, winSize.h);
             const angleDeg = angleRad * (180 / Math.PI);
 
-            // Generate CSS clip-path polygon points for curl
-            const clipPathString = transitionType === 'curl' 
-                ? `polygon(0% 0%, ${xTop}px 0%, ${xBottom}px 100%, 0% 100%)`
-                : 'none';
-
             const posRatio = sliderPos / 100;
             const showFold = transitionType === 'curl' && sliderPos > 0.5 && sliderPos < 99.5;
 
-            const imageStyle = transitionType === 'curl' 
-                ? { clipPath: clipPathString, WebkitClipPath: clipPathString }
-                : {};
+            // Direct DOM clip-path update for curl mode to bypass React style reconciliation conflicts
+            useEffect(() => {
+                if (transitionType !== 'curl') return;
+                const beforeImg = beforeImgRef.current || document.querySelector('.image-before');
+                if (beforeImg) {
+                    const clipPoints = `polygon(0px 0px, ${xTop}px 0px, ${xBottom}px ${winSize.h}px, 0px ${winSize.h}px)`;
+                    beforeImg.style.clipPath = clipPoints;
+                    beforeImg.style.webkitClipPath = clipPoints;
+                }
+            }, [sliderPos, winSize, transitionType, xTop, xBottom]);
 
             const isPageLoading = !beforeLoaded || !afterLoaded;
 
@@ -812,8 +784,8 @@
 
                     {/* Before Image (Top Layer) */}
                     <div 
+                        ref={beforeImgRef}
                         className={`image-wrapper image-before ${transitionType === 'curl' ? 'mode-curl' : 'mode-lightning'}`}
-                        style={imageStyle}
                     >
                         <img 
                             src={activeLoc.before} 
