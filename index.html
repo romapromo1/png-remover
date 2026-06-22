@@ -904,20 +904,39 @@
                     ctx.lineJoin = 'round';
                     ctx.stroke();
 
-                    // Medium golden glow drawn in a single stroke (99% GPU performance boost on mobile / iPad)
+                    // Multi-pass golden glow for maximum GPU rendering performance (replacing heavy shadowBlur)
+                    ctx.lineCap = 'round';
+                    ctx.lineJoin = 'round';
+
+                    // 1. Soft wide glow
                     ctx.beginPath();
                     ctx.moveTo(points[0].x, points[0].y);
                     for (let i = 1; i < points.length; i++) {
                         ctx.lineTo(points[i].x, points[i].y);
                     }
-                    ctx.lineWidth = 8;
-                    ctx.strokeStyle = `rgba(212, 175, 55, ${0.4 * flicker})`;
-                    ctx.shadowBlur = 10;
-                    ctx.shadowColor = 'rgba(212, 175, 55, 0.7)';
-                    ctx.lineCap = 'round';
-                    ctx.lineJoin = 'round';
+                    ctx.lineWidth = 24;
+                    ctx.strokeStyle = `rgba(212, 175, 55, ${0.12 * flicker})`;
                     ctx.stroke();
-                    ctx.shadowBlur = 0;
+
+                    // 2. Medium glow
+                    ctx.beginPath();
+                    ctx.moveTo(points[0].x, points[0].y);
+                    for (let i = 1; i < points.length; i++) {
+                        ctx.lineTo(points[i].x, points[i].y);
+                    }
+                    ctx.lineWidth = 12;
+                    ctx.strokeStyle = `rgba(212, 175, 55, ${0.28 * flicker})`;
+                    ctx.stroke();
+
+                    // 3. Core golden stroke
+                    ctx.beginPath();
+                    ctx.moveTo(points[0].x, points[0].y);
+                    for (let i = 1; i < points.length; i++) {
+                        ctx.lineTo(points[i].x, points[i].y);
+                    }
+                    ctx.lineWidth = 6;
+                    ctx.strokeStyle = `rgba(212, 175, 55, ${0.45 * flicker})`;
+                    ctx.stroke();
 
                     // Inner bright core
                     ctx.beginPath();
@@ -1043,12 +1062,14 @@
                                     if (opacityVal < 0) opacityVal = 0;
                                 }
                                 
+                                const isInteracting = isDraggingSidebarRef.current || velocityRef.current !== 0 || isScrollingWheelRef.current;
                                 const cardStyle = {
                                     '--card-translate-y': `${yTranslate}px`,
                                     transform: `translate3d(0, ${yTranslate}px, 0) scale(${scaleVal})`,
                                     opacity: opacityVal,
                                     pointerEvents: (!isCollapsed && Math.abs(offset) <= 2.2) ? 'auto' : 'none',
-                                    zIndex: Math.round(offset === 0 ? 10 : (10 - Math.abs(offset)))
+                                    zIndex: Math.round(offset === 0 ? 10 : (10 - Math.abs(offset))),
+                                    transition: isInteracting ? 'none' : ''
                                 };
 
                                 const isInteractive = !isCollapsed && Math.abs(offset) <= 2.2;
