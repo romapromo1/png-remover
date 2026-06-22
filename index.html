@@ -451,18 +451,6 @@
             // Web Audio API refs for zero-latency UI sound effects
             const audioContextRef = useRef(null);
             const audioBufferRef = useRef(null);
-            const slideBufferRef = useRef(null);
-            const slideGainNodeRef = useRef(null); // acts as Master Gain Node for velocity modulation
-            const slideFilterNodeRef = useRef(null); // Master Lowpass Filter for cutoff
-            const activeVoicesRef = useRef([]); // tracks scheduled voices { source, stopTime }
-            const schedulerIntervalRef = useRef(null);
-            const nextVoiceTimeRef = useRef(0);
-            const currentSpeedRef = useRef(0);
-            const isDraggingRef = useRef(false);
-            const distanceMovedRef = useRef(0);
-            const lastClickTimeRef = useRef(0);
-            const sidebarToggleBufferRef = useRef(null);
-            const isFirstRenderRef = useRef(true);
             const maskPolyRef = useRef(null);
 
             // Cache DOM reference for SVG mask polygon to avoid querying DOM 60 times a second
@@ -470,7 +458,7 @@
                 maskPolyRef.current = document.getElementById('mask-polygon');
             }, []);
 
-            // Preload click and slide sounds via Web Audio API and decode them in memory
+            // Preload click sound via Web Audio API and decode in memory
             useEffect(() => {
                 const initAudio = () => {
                     if (audioContextRef.current) return;
@@ -492,36 +480,6 @@
                             }
                         })
                         .catch(err => console.log("Web Audio preloading click failed:", err));
-
-                    // Load slide click sound
-                    fetch('./slide_click.mp3')
-                        .then(response => response.arrayBuffer())
-                        .then(arrayBuffer => {
-                            if (audioContextRef.current) {
-                                return audioContextRef.current.decodeAudioData(arrayBuffer);
-                            }
-                        })
-                        .then(audioBuffer => {
-                            if (audioBuffer) {
-                                slideBufferRef.current = audioBuffer;
-                            }
-                        })
-                        .catch(err => console.log("Web Audio preloading slide click failed:", err));
-
-                    // Load sidebar toggle sound
-                    fetch('./sidebar_toggle.mp3')
-                        .then(response => response.arrayBuffer())
-                        .then(arrayBuffer => {
-                            if (audioContextRef.current) {
-                                return audioContextRef.current.decodeAudioData(arrayBuffer);
-                            }
-                        })
-                        .then(audioBuffer => {
-                            if (audioBuffer) {
-                                sidebarToggleBufferRef.current = audioBuffer;
-                            }
-                        })
-                        .catch(err => console.log("Web Audio preloading sidebar toggle failed:", err));
                 };
 
                 const unlock = () => {
@@ -567,112 +525,7 @@
                 }
             };
 
-            const playSidebarToggleSound = () => {
-                const ctx = audioContextRef.current;
-                const buffer = sidebarToggleBufferRef.current;
-                if (ctx && buffer) {
-                    const source = ctx.createBufferSource();
-                    source.buffer = buffer;
-                    
-                    // Play the raw audio file directly without any filters, compressors, or volume corrections
-                    source.connect(ctx.destination);
-                    
-                    source.start(0);
-                }
-            };
 
-            // Trigger sidebar toggle sound when sidebar expands/collapses (isCollapsed changes)
-            useEffect(() => {
-                if (isFirstRenderRef.current) {
-                    isFirstRenderRef.current = false;
-                    return;
-                }
-                playSidebarToggleSound();
-            }, [isCollapsed]);
-
-            const startSlideSound = () => {
-                const ctx = audioContextRef.current;
-                const buffer = slideBufferRef.current;
-                if (!ctx || !buffer) return;
-                
-                if (ctx.state === 'suspended') {
-                    ctx.resume();
-                }
-                
-                // Ensure master gain node and master filter exist and are connected
-                if (!slideGainNodeRef.current) {
-                    const masterGain = ctx.createGain();
-                    masterGain.gain.setValueAtTime(0, ctx.currentTime);
-                    
-                    const masterFilter = ctx.createBiquadFilter();
-                    masterFilter.type = 'lowpass';
-                    masterFilter.frequency.value = 1000; // start low and warm
-                    
-                    masterFilter.connect(masterGain);
-                    masterGain.connect(ctx.destination);
-                    
-                    slideGainNodeRef.current = masterGain;
-                    slideFilterNodeRef.current = masterFilter;
-                }
-                
-                // Reset distance and time tracking for responsive rendering clicks
-                distanceMovedRef.current = 0;
-                lastClickTimeRef.current = ctx.currentTime;
-                
-                // Smoothly fade in master gain to avoid clicks
-                const sCtx = audioContextRef.current;
-                slideGainNodeRef.current.gain.cancelScheduledValues(sCtx.currentTime);
-                slideGainNodeRef.current.gain.setValueAtTime(slideGainNodeRef.current.gain.value, sCtx.currentTime);
-                slideGainNodeRef.current.gain.linearRampToValueAtTime(0.5, sCtx.currentTime + 0.05);
-            };
-
-            const stopSlideSound = () => {
-                const ctx = audioContextRef.current;
-                const masterGain = slideGainNodeRef.current;
-                const masterFilter = slideFilterNodeRef.current;
-                
-                if (!ctx || !masterGain) return;
-                
-                // Reset master node refs so no new nodes connect
-                slideGainNodeRef.current = null;
-                slideFilterNodeRef.current = null;
-                
-                try {
-                    // Smoothly fade out master volume to zero
-                    masterGain.gain.cancelScheduledValues(ctx.currentTime);
-                    masterGain.gain.setValueAtTime(masterGain.gain.value, ctx.currentTime);
-                    masterGain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.05);
-                    
-                    const voicesToStop = [...activeVoicesRef.current];
-                    activeVoicesRef.current = [];
-                    
-                    // Stop playing voices and disconnect nodes after fade out completes
-                    setTimeout(() => {
-                        voicesToStop.forEach(voice => {
-                            try {
-                                voice.source.stop();
-                                voice.source.disconnect();
-                            } catch (e) {}
-                        });
-                        try {
-                            if (masterFilter) masterFilter.disconnect();
-                            masterGain.disconnect();
-                        } catch (e) {}
-                    }, 80);
-                } catch (e) {
-                    console.log("Error stopping slide sound:", e);
-                }
-            };
-
-            // Sync isDragging state with ref and trigger slide sound loop
-            useEffect(() => {
-                isDraggingRef.current = isDragging;
-                if (isDragging) {
-                    startSlideSound();
-                } else {
-                    stopSlideSound();
-                }
-            }, [isDragging]);
             
             // Mutable references for animation loop parameters
             const timeRef = useRef(0);
@@ -987,84 +840,7 @@
                     const deltaX = targetX - prevXRef.current;
                     prevXRef.current = targetX;
 
-                    const speed = Math.abs(deltaX);
-                    currentSpeedRef.current = speed;
 
-                    // Dynamically modulate sliding sound gain, lowpass filter cutoff, and trigger clicks based on distance covered
-                    if (isDraggingRef.current && audioContextRef.current && slideBufferRef.current) {
-                        const sCtx = audioContextRef.current;
-                        
-                        // Modulate lowpass cutoff frequency dynamically:
-                        // Slow moves = warm/deep muffled sound (700Hz), Fast moves = crisp/sharp clicks (1900Hz)
-                        if (slideFilterNodeRef.current) {
-                            const targetCutoff = Math.min(700 + speed * 45, 1900);
-                            slideFilterNodeRef.current.frequency.setTargetAtTime(targetCutoff, sCtx.currentTime, 0.03);
-                        }
-
-                        // Modulate volume gain dynamically based on speed (range: 0.25 to 0.70)
-                        if (slideGainNodeRef.current) {
-                            const targetGain = Math.min(0.25 + speed * 0.02, 0.7);
-                            slideGainNodeRef.current.gain.setTargetAtTime(targetGain, sCtx.currentTime, 0.03);
-                        }
-
-                        // Track distance moved and trigger click sounds
-                        if (speed > 0) {
-                            distanceMovedRef.current += speed;
-                            const threshold = 8; // highly responsive threshold (8px) for slow movement
-                            
-                            if (distanceMovedRef.current >= threshold) {
-                                const now = sCtx.currentTime;
-                                // Limit max rate of clicks to 30ms spacing (approx 33 clicks/sec max) for a fast ratchet sound
-                                if (now - lastClickTimeRef.current >= 0.030) {
-                                    try {
-                                        const voiceSource = sCtx.createBufferSource();
-                                        voiceSource.buffer = slideBufferRef.current;
-                                        
-                                        // Connect voice to master filter (which has dynamic cutoff and gain applied)
-                                        if (slideFilterNodeRef.current) {
-                                            voiceSource.connect(slideFilterNodeRef.current);
-                                        } else {
-                                            voiceSource.connect(sCtx.destination);
-                                        }
-                                        
-                                        voiceSource.start(now);
-                                        
-                                        activeVoicesRef.current.push({
-                                            source: voiceSource,
-                                            stopTime: now + slideBufferRef.current.duration
-                                        });
-                                        
-                                        lastClickTimeRef.current = now;
-                                        distanceMovedRef.current = 0;
-                                    } catch (err) {
-                                        console.log("Error playing distance-based click:", err);
-                                    }
-                                } else {
-                                    // If threshold is reached but it's too soon to click, cap it at threshold
-                                    // to wait for the minimum spacing time before firing.
-                                    distanceMovedRef.current = threshold;
-                                }
-                            }
-                        }
-                    }
-
-                    // Clean up completed voices to keep AudioContext graph lightweight
-                    if (audioContextRef.current) {
-                        const now = audioContextRef.current.currentTime;
-                        const active = activeVoicesRef.current;
-                        const remaining = [];
-                        for (let i = 0; i < active.length; i++) {
-                            const voice = active[i];
-                            if (voice.stopTime < now) {
-                                try {
-                                    voice.source.disconnect();
-                                } catch (e) {}
-                            } else {
-                                remaining.push(voice);
-                            }
-                        }
-                        activeVoicesRef.current = remaining;
-                    }
 
                     // Adjust time increment based on movement velocity
                     const dt = Math.abs(deltaX) > 0.01 ? 0.015 : 0.003;
